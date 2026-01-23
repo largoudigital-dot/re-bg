@@ -1,0 +1,381 @@
+//
+//  ImageProcessor.swift
+//  re-bg
+//
+//  Created by Photo Editor
+//
+
+import UIKit
+import CoreImage
+import CoreImage.CIFilterBuiltins
+
+class ImageProcessor {
+    private let context = CIContext()
+    
+    // Apply filter to image
+    func applyFilter(_ filterType: FilterType, to image: UIImage) -> UIImage? {
+        guard let ciImage = CIImage(image: image) else { return image }
+        
+        let filteredImage: CIImage?
+        
+        switch filterType {
+        case .none:
+            filteredImage = ciImage
+            
+        case .losAngeles:
+            let filter = CIFilter.colorControls()
+            filter.inputImage = ciImage
+            filter.saturation = 1.3
+            filter.brightness = 0.02
+            let warmFilter = CIFilter.temperatureAndTint()
+            warmFilter.inputImage = filter.outputImage
+            warmFilter.neutral = CIVector(x: 6500, y: 0)
+            warmFilter.targetNeutral = CIVector(x: 7500, y: 0)
+            filteredImage = warmFilter.outputImage
+            
+        case .paris:
+            let filter = CIFilter.colorControls()
+            filter.inputImage = ciImage
+            filter.brightness = 0.05
+            filter.saturation = 1.1
+            let softFilter = CIFilter.temperatureAndTint()
+            softFilter.inputImage = filter.outputImage
+            softFilter.neutral = CIVector(x: 6500, y: 0)
+            softFilter.targetNeutral = CIVector(x: 5800, y: 10) // Light pink/soft tint
+            filteredImage = softFilter.outputImage
+            
+        case .tokyo:
+            let filter = CIFilter.colorControls()
+            filter.inputImage = ciImage
+            filter.contrast = 1.25
+            filter.saturation = 1.1
+            let coolFilter = CIFilter.temperatureAndTint()
+            coolFilter.inputImage = filter.outputImage
+            coolFilter.neutral = CIVector(x: 6500, y: 0)
+            coolFilter.targetNeutral = CIVector(x: 4800, y: 0)
+            filteredImage = coolFilter.outputImage
+
+        case .london:
+            let filter = CIFilter.colorControls()
+            filter.inputImage = ciImage
+            filter.saturation = 0.6
+            filter.contrast = 0.9
+            let moodyFilter = CIFilter.temperatureAndTint()
+            moodyFilter.inputImage = filter.outputImage
+            moodyFilter.neutral = CIVector(x: 6500, y: 0)
+            moodyFilter.targetNeutral = CIVector(x: 5200, y: 0)
+            filteredImage = moodyFilter.outputImage
+
+        case .newYork:
+            let mono = CIFilter.photoEffectNoir()
+            mono.inputImage = ciImage
+            let contrast = CIFilter.colorControls()
+            contrast.inputImage = mono.outputImage
+            contrast.contrast = 1.5
+            filteredImage = contrast.outputImage
+
+        case .milan:
+            let filter = CIFilter.colorControls()
+            filter.inputImage = ciImage
+            filter.saturation = 1.6
+            filter.contrast = 1.1
+            let sharpen = CIFilter.sharpenLuminance()
+            sharpen.inputImage = filter.outputImage
+            sharpen.sharpness = 0.8
+            filteredImage = sharpen.outputImage
+
+        case .sepia:
+            let filter = CIFilter.sepiaTone()
+            filter.inputImage = ciImage
+            filter.intensity = 0.8
+            filteredImage = filter.outputImage
+            
+        case .dramatic:
+            let filter = CIFilter.photoEffectChrome()
+            filter.inputImage = ciImage
+            let contrastFilter = CIFilter.colorControls()
+            contrastFilter.inputImage = filter.outputImage
+            contrastFilter.contrast = 1.2
+            filteredImage = contrastFilter.outputImage
+        }
+        
+        guard let outputImage = filteredImage,
+              let cgImage = context.createCGImage(outputImage, from: outputImage.extent) else {
+            return image
+        }
+        
+        return UIImage(cgImage: cgImage, scale: image.scale, orientation: image.imageOrientation)
+    }
+    
+    // Apply adjustments to image
+    func applyAdjustments(to image: UIImage,
+                         brightness: Double,
+                         contrast: Double,
+                         saturation: Double,
+                         blur: Double) -> UIImage? {
+        guard let ciImage = CIImage(image: image) else { return image }
+        
+        var currentImage = ciImage
+        
+        // Apply color controls (brightness, contrast, saturation)
+        let colorFilter = CIFilter.colorControls()
+        colorFilter.inputImage = currentImage
+        colorFilter.brightness = Float(brightness - 1.0) // Convert 0-2 range to -1 to 1
+        colorFilter.contrast = Float(contrast)
+        colorFilter.saturation = Float(saturation)
+        
+        if let output = colorFilter.outputImage {
+            currentImage = output
+        }
+        
+        // Apply blur if needed
+        if blur > 0 {
+            let blurFilter = CIFilter.gaussianBlur()
+            blurFilter.inputImage = currentImage
+            blurFilter.radius = Float(blur)
+            
+            if let output = blurFilter.outputImage {
+                currentImage = output
+            }
+        }
+        
+        guard let cgImage = context.createCGImage(currentImage, from: ciImage.extent) else {
+            return image
+        }
+        
+        return UIImage(cgImage: cgImage, scale: image.scale, orientation: image.imageOrientation)
+    }
+    
+    // Rotate image
+    func rotateImage(_ image: UIImage, degrees: CGFloat) -> UIImage? {
+        let radians = degrees * .pi / 180
+        
+        var newSize = CGRect(origin: .zero, size: image.size)
+            .applying(CGAffineTransform(rotationAngle: radians))
+            .size
+        
+        newSize.width = floor(newSize.width)
+        newSize.height = floor(newSize.height)
+        
+        UIGraphicsBeginImageContextWithOptions(newSize, false, image.scale)
+        guard let context = UIGraphicsGetCurrentContext() else { return nil }
+        
+        context.translateBy(x: newSize.width / 2, y: newSize.height / 2)
+        context.rotate(by: radians)
+        image.draw(in: CGRect(x: -image.size.width / 2,
+                             y: -image.size.height / 2,
+                             width: image.size.width,
+                             height: image.size.height))
+        
+        let rotatedImage = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        
+        return rotatedImage
+    }
+    
+    // Crop image
+    func cropImage(_ image: UIImage, to ratio: CGFloat) -> UIImage? {
+        let cgImage = image.cgImage!
+        let width = CGFloat(cgImage.width)
+        let height = CGFloat(cgImage.height)
+        
+        let currentRatio = width / height
+        var newWidth = width
+        var newHeight = height
+        
+        if currentRatio > ratio {
+            // Image is wider than target ratio
+            newWidth = height * ratio
+        } else {
+            // Image is taller than target ratio
+            newHeight = width / ratio
+        }
+        
+        let x = (width - newWidth) / 2
+        let y = (height - newHeight) / 2
+        
+        let cropRect = CGRect(x: x * image.scale, y: y * image.scale, width: newWidth * image.scale, height: newHeight * image.scale)
+        
+        guard let croppedCgImage = cgImage.cropping(to: cropRect) else { return image }
+        return UIImage(cgImage: croppedCgImage, scale: image.scale, orientation: image.imageOrientation)
+    }
+    
+    // Crop to custom size
+    func cropToSize(_ image: UIImage, width targetWidth: CGFloat, height targetHeight: CGFloat) -> UIImage? {
+        let ratio = targetWidth / targetHeight
+        return cropImage(image, to: ratio)
+    }
+    
+    // Process complete image with all settings
+    func processImage(original: UIImage,
+                     filter: FilterType,
+                     brightness: Double,
+                     contrast: Double,
+                     saturation: Double,
+                     blur: Double,
+                     rotation: CGFloat) -> UIImage? {
+        var processedImage = original
+        
+        // Apply filter first
+        if let filtered = applyFilter(filter, to: processedImage) {
+            processedImage = filtered
+        }
+        
+        // Apply adjustments
+        if let adjusted = applyAdjustments(to: processedImage,
+                                          brightness: brightness,
+                                          contrast: contrast,
+                                          saturation: saturation,
+                                          blur: blur) {
+            processedImage = adjusted
+        }
+        
+        // Apply rotation
+        if rotation != 0 {
+            if let rotated = rotateImage(processedImage, degrees: rotation) {
+                processedImage = rotated
+            }
+        }
+        
+        return processedImage
+    }
+    func processImageWithCrop(original: UIImage,
+                              filter: FilterType,
+                              brightness: Double,
+                              contrast: Double,
+                              saturation: Double,
+                              blur: Double,
+                              rotation: CGFloat,
+                              aspectRatio: CGFloat?,
+                              customSize: CGSize?,
+                              effect: EffectType,
+                              backgroundImage: UIImage?) -> UIImage? {
+        var processedImage = original
+        
+        // 1. Crop foreground first if needed
+        if let ratio = aspectRatio {
+            if let cropped = cropImage(processedImage, to: ratio) {
+                processedImage = cropped
+            }
+        } else if let size = customSize {
+            if let cropped = cropToSize(processedImage, width: size.width, height: size.height) {
+                processedImage = cropped
+            }
+        }
+        
+        // 2. Apply all other effects to foreground
+        var finalForeground = processImage(original: processedImage,
+                                          filter: filter,
+                                          brightness: brightness,
+                                          contrast: contrast,
+                                          saturation: saturation,
+                                          blur: blur,
+                                          rotation: rotation) ?? processedImage
+        
+        // 3. Apply selected effect to foreground
+        if effect != .none {
+            if let effected = applyEffect(effect, to: finalForeground) {
+                finalForeground = effected
+            }
+        }
+        
+        // 4. Composite with background if available
+        if let background = backgroundImage {
+            return composite(foreground: finalForeground, background: background)
+        }
+        
+        return finalForeground
+    }
+    
+    private func composite(foreground: UIImage, background: UIImage) -> UIImage? {
+        let size = foreground.size
+        UIGraphicsBeginImageContextWithOptions(size, false, foreground.scale)
+        
+        // Draw background (scaled to cover or fit? Let's use fill for background replacement)
+        let bgRect = CGRect(origin: .zero, size: size)
+        
+        // Simple scaling of background to fit foreground size
+        background.draw(in: bgRect)
+        
+        // Draw foreground on top
+        foreground.draw(in: bgRect)
+        
+        let result = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        
+        return result
+    }
+    
+    // Core Effect logic
+    func applyEffect(_ effect: EffectType, to image: UIImage) -> UIImage? {
+        guard let ciImage = CIImage(image: image) else { return image }
+        var outputImage: CIImage?
+        
+        switch effect {
+        case .none:
+            return image
+        case .vignette:
+            let filter = CIFilter.vignette()
+            filter.inputImage = ciImage
+            filter.intensity = 1.0
+            filter.radius = 2.0
+            outputImage = filter.outputImage
+        case .bloom:
+            let filter = CIFilter.bloom()
+            filter.inputImage = ciImage
+            filter.intensity = 0.8
+            filter.radius = 10.0
+            outputImage = filter.outputImage
+        case .noir:
+            let filter = CIFilter.photoEffectNoir()
+            filter.inputImage = ciImage
+            outputImage = filter.outputImage
+        case .crystal:
+            let filter = CIFilter.gloom()
+            filter.inputImage = ciImage
+            filter.intensity = 1.0
+            filter.radius = 10.0
+            outputImage = filter.outputImage
+        case .blur:
+            let filter = CIFilter.gaussianBlur()
+            filter.inputImage = ciImage
+            filter.radius = 10.0
+            outputImage = filter.outputImage
+        case .edges:
+            let filter = CIFilter.edges()
+            filter.inputImage = ciImage
+            filter.intensity = 1.0
+            outputImage = filter.outputImage
+        case .posterize:
+            let filter = CIFilter.colorPosterize()
+            filter.inputImage = ciImage
+            filter.levels = 6.0
+            outputImage = filter.outputImage
+        case .grain:
+            // 1. Create random noise
+            let noise = CIFilter.randomGenerator()
+            let noiseImage = noise.outputImage?.cropped(to: ciImage.extent)
+            
+            // 2. Make it monochrome/grey
+            let whiteNoise = CIFilter.colorMonochrome()
+            whiteNoise.inputImage = noiseImage
+            whiteNoise.color = CIColor.gray
+            whiteNoise.intensity = 1.0
+            
+            // 3. Blend with original (Overlay or Soft Light look)
+            let blend = CIFilter.overlayBlendMode()
+            blend.inputImage = whiteNoise.outputImage
+            blend.backgroundImage = ciImage
+            
+            // 4. Adjust intensity by blending back a bit
+            outputImage = blend.outputImage
+        }
+        
+        guard let result = outputImage,
+              let cgImage = context.createCGImage(result, from: result.extent) else {
+            return image
+        }
+        
+        return UIImage(cgImage: cgImage, scale: image.scale, orientation: image.imageOrientation)
+    }
+}
