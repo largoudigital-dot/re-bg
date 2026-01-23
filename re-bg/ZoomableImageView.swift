@@ -27,7 +27,7 @@ struct ZoomableImageView: View {
     
     @State private var showVGuide = false
     @State private var showHGuide = false
-    @State private var isInteracting = false
+    @State private var interactingLayer: SelectedLayer? = nil
     
     private let snapThreshold: CGFloat = 10
     
@@ -42,7 +42,7 @@ struct ZoomableImageView: View {
                             .aspectRatio(contentMode: .fill)
                             .overlay(
                                 Rectangle()
-                                    .stroke(Color.blue, lineWidth: (activeLayer == .background && isInteracting) ? 3 : 0)
+                                    .stroke(Color.blue, lineWidth: (interactingLayer == .background) ? 3 : 0)
                             )
                             .scaleEffect(bgScale)
                             .offset(bgOffset)
@@ -50,7 +50,7 @@ struct ZoomableImageView: View {
                         LinearGradient(colors: colors, startPoint: .top, endPoint: .bottom)
                             .overlay(
                                 Rectangle()
-                                    .stroke(Color.blue, lineWidth: (activeLayer == .background && isInteracting) ? 3 : 0)
+                                    .stroke(Color.blue, lineWidth: (interactingLayer == .background) ? 3 : 0)
                             )
                             .scaleEffect(bgScale)
                             .offset(bgOffset)
@@ -58,7 +58,7 @@ struct ZoomableImageView: View {
                         color
                             .overlay(
                                 Rectangle()
-                                    .stroke(Color.blue, lineWidth: (activeLayer == .background && isInteracting) ? 3 : 0)
+                                    .stroke(Color.blue, lineWidth: (interactingLayer == .background) ? 3 : 0)
                             )
                             .scaleEffect(bgScale)
                             .offset(bgOffset)
@@ -68,6 +68,7 @@ struct ZoomableImageView: View {
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height)
                 .clipped()
+                .gesture(layerGesture(for: .background))
                 
                 // 2. Foreground Layer (Middle)
                 if let displayImage = (foreground ?? original) {
@@ -76,10 +77,11 @@ struct ZoomableImageView: View {
                         .aspectRatio(contentMode: .fit)
                         .overlay(
                             Rectangle()
-                                .stroke(Color.blue, lineWidth: (activeLayer == .foreground && isInteracting) ? 3 : 0)
+                                .stroke(Color.blue, lineWidth: (interactingLayer == .foreground) ? 3 : 0)
                         )
                         .scaleEffect(fgScale)
                         .offset(fgOffset)
+                        .gesture(layerGesture(for: .foreground))
                 }
                 
                 // 3. Guidelines (Top)
@@ -104,57 +106,48 @@ struct ZoomableImageView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        if !isInteracting {
-                            isInteracting = true
-                            hapticFeedback()
-                        }
-                        updatePosition(for: activeLayer, translation: value.translation)
-                    }
-                    .onEnded { _ in
-                        isInteracting = false
-                        if activeLayer == .foreground {
-                            fgLastOffset = fgOffset
-                        } else {
-                            bgLastOffset = bgOffset
-                        }
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            showVGuide = false
-                            showHGuide = false
-                        }
-                    }
-            )
-            .gesture(
-                MagnificationGesture()
-                    .onChanged { value in
-                        if !isInteracting {
-                            isInteracting = true
-                            hapticFeedback()
-                        }
-                        if activeLayer == .foreground {
-                            fgScale = fgLastScale * value
-                        } else {
-                            bgScale = bgLastScale * value
-                        }
-                    }
-                    .onEnded { _ in
-                        isInteracting = false
-                        if activeLayer == .foreground {
-                            fgLastScale = fgScale
-                        } else {
-                            bgLastScale = bgScale
-                        }
-                    }
-            )
-            .simultaneousGesture(
-                TapGesture(count: 2)
-                    .onEnded {
-                        resetTransform(for: activeLayer)
-                    }
-            )
         }
+    }
+    
+    // MARK: - Gesture Logic
+    
+    private func layerGesture(for layer: SelectedLayer) -> some Gesture {
+        let drag = DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                if interactingLayer == nil {
+                    interactingLayer = layer
+                    hapticFeedback()
+                }
+                updatePosition(for: layer, translation: value.translation)
+            }
+            .onEnded { _ in
+                finalizeOffset(for: layer)
+                interactingLayer = nil
+                withAnimation(.easeOut(duration: 0.2)) {
+                    showVGuide = false
+                    showHGuide = false
+                }
+            }
+            
+        let zoom = MagnificationGesture()
+            .onChanged { value in
+                if interactingLayer == nil {
+                    interactingLayer = layer
+                    hapticFeedback()
+                }
+                updateScale(for: layer, value: value)
+            }
+            .onEnded { _ in
+                finalizeScale(for: layer)
+                interactingLayer = nil
+            }
+            
+        let doubleTap = TapGesture(count: 2)
+            .onEnded {
+                resetTransform(for: layer)
+            }
+            
+        return drag.simultaneously(with: zoom).simultaneously(with: doubleTap)
     }
     
     private func updatePosition(for layer: SelectedLayer, translation: CGSize) {
@@ -192,6 +185,30 @@ struct ZoomableImageView: View {
             fgOffset = CGSize(width: finalX, height: finalY)
         } else {
             bgOffset = CGSize(width: finalX, height: finalY)
+        }
+    }
+    
+    private func finalizeOffset(for layer: SelectedLayer) {
+        if layer == .foreground {
+            fgLastOffset = fgOffset
+        } else {
+            bgLastOffset = bgOffset
+        }
+    }
+    
+    private func updateScale(for layer: SelectedLayer, value: CGFloat) {
+        if layer == .foreground {
+            fgScale = fgLastScale * value
+        } else {
+            bgScale = bgLastScale * value
+        }
+    }
+    
+    private func finalizeScale(for layer: SelectedLayer) {
+        if layer == .foreground {
+            fgLastScale = fgScale
+        } else {
+            bgLastScale = bgScale
         }
     }
     
