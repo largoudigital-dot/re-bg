@@ -175,7 +175,7 @@ struct EditorView: View {
                     original: original,
                     backgroundColor: viewModel.backgroundColor,
                     gradientColors: viewModel.gradientColors,
-                    activeLayer: (selectedTab == .canvas || selectedTab == .unsplash || selectedTab == .colors) ? .background : .foreground
+                    activeLayer: selectedTab == .canvas ? .canvas : ((selectedTab == .unsplash || selectedTab == .colors) ? .background : .foreground)
                 )
                 .id("photo-\(viewModel.rotation)")
             }

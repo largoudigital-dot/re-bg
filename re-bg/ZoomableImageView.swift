@@ -3,6 +3,7 @@ import SwiftUI
 enum SelectedLayer {
     case foreground
     case background
+    case canvas
 }
 
 struct ZoomableImageView: View {
@@ -25,6 +26,12 @@ struct ZoomableImageView: View {
     @State private var bgOffset: CGSize = .zero
     @State private var bgLastOffset: CGSize = .zero
     
+    // Canvas State (Affects both)
+    @State private var canvasScale: CGFloat = 1.0
+    @State private var canvasLastScale: CGFloat = 1.0
+    @State private var canvasOffset: CGSize = .zero
+    @State private var canvasLastOffset: CGSize = .zero
+    
     @State private var showVGuide = false
     @State private var showHGuide = false
     @State private var interactingLayer: SelectedLayer? = nil
@@ -34,55 +41,63 @@ struct ZoomableImageView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // 1. Background Layer (Bottom)
-                Group {
-                    if let bgImage = background {
-                        Image(uiImage: bgImage)
+                // Background Tap Area for Canvas manipulation
+                Color.black.opacity(0.001)
+                    .gesture(layerGesture(for: .canvas))
+                
+                // --- CANVAS CONTAINER ---
+                ZStack {
+                    // 1. Background Layer (Bottom)
+                    Group {
+                        if let bgImage = background {
+                            Image(uiImage: bgImage)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .overlay(
+                                    Rectangle()
+                                        .stroke(Color.blue, lineWidth: (interactingLayer == .background || (interactingLayer == .canvas && activeLayer == .canvas)) ? 3 : 0)
+                                )
+                                .scaleEffect(bgScale)
+                                .offset(bgOffset)
+                        } else if let colors = gradientColors {
+                            LinearGradient(colors: colors, startPoint: .top, endPoint: .bottom)
+                                .overlay(
+                                    Rectangle()
+                                        .stroke(Color.blue, lineWidth: (interactingLayer == .background || (interactingLayer == .canvas && activeLayer == .canvas)) ? 3 : 0)
+                                )
+                                .scaleEffect(bgScale)
+                                .offset(bgOffset)
+                        } else if let color = backgroundColor {
+                            color
+                                .overlay(
+                                    Rectangle()
+                                        .stroke(Color.blue, lineWidth: (interactingLayer == .background || (interactingLayer == .canvas && activeLayer == .canvas)) ? 3 : 0)
+                                )
+                                .scaleEffect(bgScale)
+                                .offset(bgOffset)
+                        }
+                    }
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .clipped()
+                    .gesture(layerGesture(for: .background))
+                    
+                    // 2. Foreground Layer (Middle)
+                    if let displayImage = (foreground ?? original) {
+                        Image(uiImage: displayImage)
                             .resizable()
-                            .aspectRatio(contentMode: .fill)
+                            .aspectRatio(contentMode: .fit)
                             .overlay(
                                 Rectangle()
-                                    .stroke(Color.blue, lineWidth: (interactingLayer == .background) ? 3 : 0)
+                                    .stroke(Color.blue, lineWidth: (interactingLayer == .foreground || (interactingLayer == .canvas && activeLayer == .canvas)) ? 3 : 0)
                             )
-                            .scaleEffect(bgScale)
-                            .offset(bgOffset)
-                    } else if let colors = gradientColors {
-                        LinearGradient(colors: colors, startPoint: .top, endPoint: .bottom)
-                            .overlay(
-                                Rectangle()
-                                    .stroke(Color.blue, lineWidth: (interactingLayer == .background) ? 3 : 0)
-                            )
-                            .scaleEffect(bgScale)
-                            .offset(bgOffset)
-                    } else if let color = backgroundColor {
-                        color
-                            .overlay(
-                                Rectangle()
-                                    .stroke(Color.blue, lineWidth: (interactingLayer == .background) ? 3 : 0)
-                            )
-                            .scaleEffect(bgScale)
-                            .offset(bgOffset)
-                    } else {
-                        Color.clear
+                            .scaleEffect(fgScale)
+                            .offset(fgOffset)
+                            .gesture(layerGesture(for: .foreground))
                     }
                 }
-                .frame(width: geometry.size.width, height: geometry.size.height)
-                .clipped()
-                .gesture(layerGesture(for: .background))
-                
-                // 2. Foreground Layer (Middle)
-                if let displayImage = (foreground ?? original) {
-                    Image(uiImage: displayImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .overlay(
-                            Rectangle()
-                                .stroke(Color.blue, lineWidth: (interactingLayer == .foreground) ? 3 : 0)
-                        )
-                        .scaleEffect(fgScale)
-                        .offset(fgOffset)
-                        .gesture(layerGesture(for: .foreground))
-                }
+                .scaleEffect(canvasScale)
+                .offset(canvasOffset)
+                // --- END CANVAS CONTAINER ---
                 
                 // 3. Guidelines (Top)
                 if showVGuide || showHGuide {
@@ -112,16 +127,23 @@ struct ZoomableImageView: View {
     // MARK: - Gesture Logic
     
     private func layerGesture(for layer: SelectedLayer) -> some Gesture {
+        // If the Canvas tab is active, we force interactions to be Canvas-level 
+        // unless the user specifically has a need for individual layers.
+        // But the user said "leinwand soll an hintergrand und vordergrand zusammen betreffen",
+        // so when activeLayer is .canvas, we should probably prefer canvas gestures.
+        
+        let targetLayer = (activeLayer == .canvas) ? .canvas : layer
+        
         let drag = DragGesture(minimumDistance: 0)
             .onChanged { value in
                 if interactingLayer == nil {
-                    interactingLayer = layer
+                    interactingLayer = targetLayer
                     hapticFeedback()
                 }
-                updatePosition(for: layer, translation: value.translation)
+                updatePosition(for: targetLayer, translation: value.translation)
             }
             .onEnded { _ in
-                finalizeOffset(for: layer)
+                finalizeOffset(for: targetLayer)
                 interactingLayer = nil
                 withAnimation(.easeOut(duration: 0.2)) {
                     showVGuide = false
@@ -132,19 +154,19 @@ struct ZoomableImageView: View {
         let zoom = MagnificationGesture()
             .onChanged { value in
                 if interactingLayer == nil {
-                    interactingLayer = layer
+                    interactingLayer = targetLayer
                     hapticFeedback()
                 }
-                updateScale(for: layer, value: value)
+                updateScale(for: targetLayer, value: value)
             }
             .onEnded { _ in
-                finalizeScale(for: layer)
+                finalizeScale(for: targetLayer)
                 interactingLayer = nil
             }
             
         let doubleTap = TapGesture(count: 2)
             .onEnded {
-                resetTransform(for: layer)
+                resetTransform(for: targetLayer)
             }
             
         return drag.simultaneously(with: zoom).simultaneously(with: doubleTap)
@@ -154,12 +176,16 @@ struct ZoomableImageView: View {
         let newX: CGFloat
         let newY: CGFloat
         
-        if layer == .foreground {
+        switch layer {
+        case .foreground:
             newX = fgLastOffset.width + translation.width
             newY = fgLastOffset.height + translation.height
-        } else {
+        case .background:
             newX = bgLastOffset.width + translation.width
             newY = bgLastOffset.height + translation.height
+        case .canvas:
+            newX = canvasLastOffset.width + translation.width
+            newY = canvasLastOffset.height + translation.height
         }
         
         var finalX = newX
@@ -181,49 +207,49 @@ struct ZoomableImageView: View {
             showHGuide = false
         }
         
-        if layer == .foreground {
+        switch layer {
+        case .foreground:
             fgOffset = CGSize(width: finalX, height: finalY)
-        } else {
+        case .background:
             bgOffset = CGSize(width: finalX, height: finalY)
+        case .canvas:
+            canvasOffset = CGSize(width: finalX, height: finalY)
         }
     }
     
     private func finalizeOffset(for layer: SelectedLayer) {
-        if layer == .foreground {
-            fgLastOffset = fgOffset
-        } else {
-            bgLastOffset = bgOffset
+        switch layer {
+        case .foreground: fgLastOffset = fgOffset
+        case .background: bgLastOffset = bgOffset
+        case .canvas: canvasLastOffset = canvasOffset
         }
     }
     
     private func updateScale(for layer: SelectedLayer, value: CGFloat) {
-        if layer == .foreground {
-            fgScale = fgLastScale * value
-        } else {
-            bgScale = bgLastScale * value
+        switch layer {
+        case .foreground: fgScale = fgLastScale * value
+        case .background: bgScale = bgLastScale * value
+        case .canvas: canvasScale = canvasLastScale * value
         }
     }
     
     private func finalizeScale(for layer: SelectedLayer) {
-        if layer == .foreground {
-            fgLastScale = fgScale
-        } else {
-            bgLastScale = bgScale
+        switch layer {
+        case .foreground: fgLastScale = fgScale
+        case .background: bgLastScale = bgScale
+        case .canvas: canvasLastScale = canvasScale
         }
     }
     
     private func resetTransform(for layer: SelectedLayer) {
         withAnimation(.spring()) {
-            if layer == .foreground {
-                fgScale = 1.0
-                fgLastScale = 1.0
-                fgOffset = .zero
-                fgLastOffset = .zero
-            } else {
-                bgScale = 1.0
-                bgLastScale = 1.0
-                bgOffset = .zero
-                bgLastOffset = .zero
+            switch layer {
+            case .foreground:
+                fgScale = 1.0; fgLastScale = 1.0; fgOffset = .zero; fgLastOffset = .zero
+            case .background:
+                bgScale = 1.0; bgLastScale = 1.0; bgOffset = .zero; bgLastOffset = .zero
+            case .canvas:
+                canvasScale = 1.0; canvasLastScale = 1.0; canvasOffset = .zero; canvasLastOffset = .zero
             }
             showVGuide = false
             showHGuide = false
