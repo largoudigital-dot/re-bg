@@ -6,6 +6,9 @@ struct UnsplashPickerView: View {
     @State private var photos: [UnsplashPhoto] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var showingActionSheet = false
+    @State private var showingGallery = false
+    @State private var showingCamera = false
     
     let onSelect: (UIImage) -> Void
     private let service = UnsplashService()
@@ -54,6 +57,23 @@ struct UnsplashPickerView: View {
                 } else {
                     ScrollView {
                         LazyVGrid(columns: columns, spacing: 2) {
+                            // First Element: Upload Button
+                            Button(action: {
+                                showingActionSheet = true
+                            }) {
+                                VStack(spacing: 8) {
+                                    Image(systemName: "plus.viewfinder")
+                                        .font(.system(size: 30))
+                                        .foregroundColor(.white)
+                                    Text("Eigenes Foto")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundColor(.white)
+                                }
+                                .frame(minWidth: 0, maxWidth: .infinity)
+                                .frame(height: 120)
+                                .background(Color.white.opacity(0.1))
+                            }
+                            
                             ForEach(photos) { photo in
                                 Button(action: {
                                     selectPhoto(photo)
@@ -76,8 +96,25 @@ struct UnsplashPickerView: View {
                 }
             }
             .background(Color(hex: "#1F2937").ignoresSafeArea())
-            .navigationTitle("Unsplash Fotos")
+            .navigationTitle("Fotos")
             .navigationBarTitleDisplayMode(.inline)
+            .confirmationDialog("Foto hinzufügen", isPresented: $showingActionSheet) {
+                Button("Aus Galerie wählen") { showingGallery = true }
+                Button("Foto aufnehmen") { showingCamera = true }
+                Button("Abbrechen", role: .cancel) { }
+            }
+            .sheet(isPresented: $showingGallery) {
+                ImagePicker(onSelect: { image in
+                    onSelect(image)
+                    dismiss()
+                })
+            }
+            .sheet(isPresented: $showingCamera) {
+                CameraPicker(onSelect: { image in
+                    onSelect(image)
+                    dismiss()
+                })
+            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Abbrechen") {
@@ -141,6 +178,43 @@ struct UnsplashPickerView: View {
                     self.isLoading = false
                 }
             }
+        }
+    }
+}
+
+struct CameraPicker: UIViewControllerRepresentable {
+    let onSelect: (UIImage) -> Void
+    @Environment(\.dismiss) private var dismiss
+    
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.delegate = context.coordinator
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let parent: CameraPicker
+        
+        init(_ parent: CameraPicker) {
+            self.parent = parent
+        }
+        
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+            if let image = info[.originalImage] as? UIImage {
+                parent.onSelect(image)
+            }
+            parent.dismiss()
+        }
+        
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.dismiss()
         }
     }
 }

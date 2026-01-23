@@ -9,9 +9,8 @@ import SwiftUI
 
 enum EditorTab: String, CaseIterable, Identifiable {
     case canvas = "Leinwand"
-    case filter = "Filter"
+    case colors = "Farben"
     case adjust = "Anpassen"
-    case effect = "Effekt"
     case unsplash = "Fotos"
     
     var id: String { rawValue }
@@ -19,10 +18,23 @@ enum EditorTab: String, CaseIterable, Identifiable {
     var iconName: String {
         switch self {
         case .canvas: return "square.on.square"
-        case .filter: return "camera.filters"
+        case .colors: return "paintpalette"
         case .adjust: return "slider.horizontal.3"
-        case .effect: return "wand.and.stars"
         case .unsplash: return "photo.on.rectangle"
+        }
+    }
+}
+
+enum ColorPickerTab: String, CaseIterable, Identifiable {
+    case presets = "Presets"
+    case gradients = "Verläufe"
+    
+    var id: String { rawValue }
+    
+    var iconName: String {
+        switch self {
+        case .presets: return "circle.grid.2x2"
+        case .gradients: return "slider.horizontal.2.square"
         }
     }
 }
@@ -31,6 +43,7 @@ struct EditorView: View {
     @StateObject private var viewModel = EditorViewModel()
     @State private var selectedTab: EditorTab?
     @State private var selectedAdjustmentParameter: AdjustmentParameter? = nil
+    @State private var selectedColorPicker: ColorPickerTab? = nil
     @State private var showingSaveAlert = false
     @State private var saveMessage = ""
     @State private var showingUnsplashPicker = false
@@ -61,6 +74,8 @@ struct EditorView: View {
                                 withAnimation(.easeInOut(duration: 0.2)) {
                                     if let _ = selectedAdjustmentParameter {
                                         selectedAdjustmentParameter = nil
+                                    } else if let _ = selectedColorPicker {
+                                        selectedColorPicker = nil
                                     } else {
                                         selectedTab = nil
                                     }
@@ -83,8 +98,8 @@ struct EditorView: View {
                             .transition(.move(edge: .leading))
                     }
                 }
-                .frame(maxHeight: 90)
-                .background(Color.black.opacity(0.5))
+                .frame(height: bottomBarHeight)
+                .background(Color.black.opacity(0.8))
                 .background(.ultraThinMaterial)
             }
             .padding(.bottom, geometry.safeAreaInsets.bottom > 0 ? 0 : 10)
@@ -105,6 +120,10 @@ struct EditorView: View {
                 viewModel.setBackgroundImage(newImage)
             }
         }
+    }
+    
+    private var bottomBarHeight: CGFloat {
+        return 90 // Minimal height for all color pickers now
     }
     
     private var navigationBar: some View {
@@ -275,9 +294,8 @@ struct EditorView: View {
     private func isTabActive(_ tab: EditorTab) -> Bool {
         switch tab {
         case .canvas: return viewModel.isCanvasActive
-        case .filter: return viewModel.isFilterActive
         case .adjust: return viewModel.isAdjustActive
-        case .effect: return viewModel.isEffectActive
+        case .colors: return viewModel.isColorActive
         case .unsplash: return false
         }
     }
@@ -287,12 +305,10 @@ struct EditorView: View {
         switch tab {
         case .canvas:
             CanvasTabView(viewModel: viewModel)
-        case .filter:
-            FilterTabView(viewModel: viewModel)
         case .adjust:
             AdjustmentTabView(viewModel: viewModel, selectedParameter: $selectedAdjustmentParameter)
-        case .effect:
-            EffectTabView(viewModel: viewModel)
+        case .colors:
+            ColorsTabView(viewModel: viewModel, selectedPicker: $selectedColorPicker)
         case .unsplash:
             EmptyView()
         }

@@ -17,7 +17,8 @@ struct EditorState: Equatable {
     var rotation: CGFloat
     var selectedAspectRatio: AspectRatio
     var customSize: CGSize?
-    var selectedEffect: EffectType
+    var backgroundColor: Color?
+    var gradientColors: [Color]?
     var backgroundImage: UIImage?
 }
 
@@ -37,7 +38,8 @@ class EditorViewModel: ObservableObject {
     @Published var isRemovingBackground = false
     @Published var selectedAspectRatio: AspectRatio = .original
     @Published var customSize: CGSize? = nil
-    @Published var selectedEffect: EffectType = .none
+    @Published var backgroundColor: Color? = nil
+    @Published var gradientColors: [Color]? = nil
     
     // Undo/Redo Stacks
     private var undoStack: [EditorState] = []
@@ -60,8 +62,8 @@ class EditorViewModel: ObservableObject {
         brightness != 1.0 || contrast != 1.0 || saturation != 1.0 || blur != 0.0
     }
     
-    var isEffectActive: Bool {
-        selectedEffect != .none
+    var isColorActive: Bool {
+        backgroundColor != nil || gradientColors != nil
     }
     
     private let imageProcessor = ImageProcessor()
@@ -89,7 +91,8 @@ class EditorViewModel: ObservableObject {
             rotation: rotation,
             selectedAspectRatio: selectedAspectRatio,
             customSize: customSize,
-            selectedEffect: selectedEffect,
+            backgroundColor: backgroundColor,
+            gradientColors: gradientColors,
             backgroundImage: backgroundImage
         )
     }
@@ -145,13 +148,16 @@ class EditorViewModel: ObservableObject {
         rotation = state.rotation
         selectedAspectRatio = state.selectedAspectRatio
         customSize = state.customSize
-        selectedEffect = state.selectedEffect
+        backgroundColor = state.backgroundColor
+        gradientColors = state.gradientColors
         backgroundImage = state.backgroundImage
     }
     
     func setBackgroundImage(_ image: UIImage) {
         saveState()
         self.backgroundImage = image
+        self.backgroundColor = nil
+        self.gradientColors = nil
         updateProcessedImage()
     }
     
@@ -224,6 +230,8 @@ class EditorViewModel: ObservableObject {
         contrast = 1.0
         saturation = 1.0
         blur = 0.0
+        backgroundColor = nil
+        gradientColors = nil
         backgroundImage = nil // Also reset background if needed
         updateProcessedImage()
     }
@@ -245,7 +253,8 @@ class EditorViewModel: ObservableObject {
                 rotation: self.rotation,
                 aspectRatio: self.selectedAspectRatio.ratio,
                 customSize: self.customSize,
-                effect: self.selectedEffect,
+                backgroundColor: self.backgroundColor,
+                gradientColors: self.gradientColors,
                 backgroundImage: self.backgroundImage
             )
             

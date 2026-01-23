@@ -8,6 +8,21 @@
 import UIKit
 import CoreImage
 import CoreImage.CIFilterBuiltins
+import SwiftUI
+
+enum EffectType: String, CaseIterable, Identifiable {
+    case none = "Original"
+    case vignette = "Vignette"
+    case bloom = "Bloom"
+    case noir = "Noir"
+    case crystal = "Kristall"
+    case blur = "Unschärfe"
+    case edges = "Kanten"
+    case posterize = "Poster"
+    case grain = "Körnung"
+    
+    var id: String { rawValue }
+}
 
 class ImageProcessor {
     private let context = CIContext()
@@ -248,7 +263,8 @@ class ImageProcessor {
                               rotation: CGFloat,
                               aspectRatio: CGFloat?,
                               customSize: CGSize?,
-                              effect: EffectType,
+                              backgroundColor: Color?,
+                              gradientColors: [Color]?,
                               backgroundImage: UIImage?) -> UIImage? {
         var processedImage = original
         
@@ -272,33 +288,64 @@ class ImageProcessor {
                                           blur: blur,
                                           rotation: rotation) ?? processedImage
         
-        // 3. Apply selected effect to foreground
-        if effect != .none {
-            if let effected = applyEffect(effect, to: finalForeground) {
-                finalForeground = effected
+        // 3. Composite with background if available
+        if let background = backgroundImage {
+            return composite(foreground: finalForeground, background: background)
+        } else if let colors = gradientColors {
+            if let gradientBg = self.createGradientImage(colors: colors, size: finalForeground.size) {
+                return composite(foreground: finalForeground, background: gradientBg)
+            }
+        } else if let color = backgroundColor {
+            if let colorBg = self.createColorImage(color: color, size: finalForeground.size) {
+                return composite(foreground: finalForeground, background: colorBg)
             }
         }
         
-        // 4. Composite with background if available
-        if let background = backgroundImage {
-            return composite(foreground: finalForeground, background: background)
-        }
-        
         return finalForeground
+    }
+    
+    private func createColorImage(color: Color, size: CGSize) -> UIImage? {
+        let renderer = UIGraphicsImageRenderer(size: size)
+        return renderer.image { context in
+            UIColor(color).setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+        }
+    }
+    
+    private func createGradientImage(colors: [Color], size: CGSize) -> UIImage? {
+        let renderer = UIGraphicsImageRenderer(size: size)
+        return renderer.image { context in
+            let cgColors = colors.map { UIColor($0).cgColor }
+            let colorSpace = CGColorSpaceCreateDeviceRGB()
+            guard let gradient = CGGradient(colorsSpace: colorSpace, colors: cgColors as CFArray, locations: nil) else { return }
+            
+            context.cgContext.drawLinearGradient(gradient, start: CGPoint.zero, end: CGPoint(x: 0, y: size.height), options: [])
+        }
     }
     
     private func composite(foreground: UIImage, background: UIImage) -> UIImage? {
         let size = foreground.size
         UIGraphicsBeginImageContextWithOptions(size, false, foreground.scale)
         
-        // Draw background (scaled to cover or fit? Let's use fill for background replacement)
-        let bgRect = CGRect(origin: .zero, size: size)
+        // Calculate aspect fill (cover) scale
+        let widthRatio = size.width / background.size.width
+        let heightRatio = size.height / background.size.height
+        let scale = max(widthRatio, heightRatio)
         
-        // Simple scaling of background to fit foreground size
+        let newWidth = background.size.width * scale
+        let newHeight = background.size.height * scale
+        
+        // Center the background
+        let x = (size.width - newWidth) / 2
+        let y = (size.height - newHeight) / 2
+        
+        let bgRect = CGRect(x: x, y: y, width: newWidth, height: newHeight)
+        
+        // Draw background with cover logic
         background.draw(in: bgRect)
         
         // Draw foreground on top
-        foreground.draw(in: bgRect)
+        foreground.draw(in: CGRect(origin: .zero, size: size))
         
         let result = UIGraphicsGetImageFromCurrentImageContext()
         UIGraphicsEndImageContext()
