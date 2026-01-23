@@ -27,6 +27,7 @@ struct ZoomableImageView: View {
     
     @State private var showVGuide = false
     @State private var showHGuide = false
+    @State private var isInteracting = false
     
     private let snapThreshold: CGFloat = 10
     
@@ -39,14 +40,26 @@ struct ZoomableImageView: View {
                         Image(uiImage: bgImage)
                             .resizable()
                             .aspectRatio(contentMode: .fill)
+                            .overlay(
+                                Rectangle()
+                                    .stroke(Color.blue, lineWidth: (activeLayer == .background && isInteracting) ? 3 : 0)
+                            )
                             .scaleEffect(bgScale)
                             .offset(bgOffset)
                     } else if let colors = gradientColors {
                         LinearGradient(colors: colors, startPoint: .top, endPoint: .bottom)
+                            .overlay(
+                                Rectangle()
+                                    .stroke(Color.blue, lineWidth: (activeLayer == .background && isInteracting) ? 3 : 0)
+                            )
                             .scaleEffect(bgScale)
                             .offset(bgOffset)
                     } else if let color = backgroundColor {
                         color
+                            .overlay(
+                                Rectangle()
+                                    .stroke(Color.blue, lineWidth: (activeLayer == .background && isInteracting) ? 3 : 0)
+                            )
                             .scaleEffect(bgScale)
                             .offset(bgOffset)
                     } else {
@@ -54,13 +67,17 @@ struct ZoomableImageView: View {
                     }
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height)
-                .clipped() // Ensures background doesn't leak out of area
+                .clipped()
                 
                 // 2. Foreground Layer (Middle)
                 if let displayImage = (foreground ?? original) {
                     Image(uiImage: displayImage)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
+                        .overlay(
+                            Rectangle()
+                                .stroke(Color.blue, lineWidth: (activeLayer == .foreground && isInteracting) ? 3 : 0)
+                        )
                         .scaleEffect(fgScale)
                         .offset(fgOffset)
                 }
@@ -82,7 +99,7 @@ struct ZoomableImageView: View {
                                 .shadow(color: .blue.opacity(0.5), radius: 5)
                         }
                     }
-                    .allowsHitTesting(false) // Don't block gestures
+                    .allowsHitTesting(false)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -90,9 +107,14 @@ struct ZoomableImageView: View {
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
+                        if !isInteracting {
+                            isInteracting = true
+                            hapticFeedback()
+                        }
                         updatePosition(for: activeLayer, translation: value.translation)
                     }
                     .onEnded { _ in
+                        isInteracting = false
                         if activeLayer == .foreground {
                             fgLastOffset = fgOffset
                         } else {
@@ -107,6 +129,10 @@ struct ZoomableImageView: View {
             .gesture(
                 MagnificationGesture()
                     .onChanged { value in
+                        if !isInteracting {
+                            isInteracting = true
+                            hapticFeedback()
+                        }
                         if activeLayer == .foreground {
                             fgScale = fgLastScale * value
                         } else {
@@ -114,6 +140,7 @@ struct ZoomableImageView: View {
                         }
                     }
                     .onEnded { _ in
+                        isInteracting = false
                         if activeLayer == .foreground {
                             fgLastScale = fgScale
                         } else {
@@ -145,7 +172,6 @@ struct ZoomableImageView: View {
         var finalX = newX
         var finalY = newY
         
-        // Haptic feedback & Visual Guides logic
         if abs(newX) < snapThreshold {
             if !showVGuide { hapticFeedback() }
             finalX = 0
@@ -185,5 +211,6 @@ struct ZoomableImageView: View {
             showVGuide = false
             showHGuide = false
         }
+        hapticFeedback()
     }
 }
