@@ -168,12 +168,16 @@ struct EditorView: View {
         ZStack {
             Color.clear
             
-            if let image = viewModel.processedImage {
-                Image(uiImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .transition(.opacity.combined(with: .scale))
-                    .id("photo-\(viewModel.rotation)") // Force unique ID per rotation for smooth transiton if needed, but fitting is enough
+            if let original = viewModel.originalImage {
+                ZoomableImageView(
+                    foreground: viewModel.foregroundImage,
+                    background: viewModel.backgroundImage,
+                    original: original,
+                    backgroundColor: viewModel.backgroundColor,
+                    gradientColors: viewModel.gradientColors,
+                    activeLayer: (selectedTab == .canvas || selectedTab == .unsplash || selectedTab == .colors) ? .background : .foreground
+                )
+                .id("photo-\(viewModel.rotation)")
             }
             
             if viewModel.isRemovingBackground {
@@ -192,6 +196,8 @@ struct EditorView: View {
                 }
             }
         }
+        .background(Color.black)
+        .clipped()
         .overlay(alignment: .bottom) {
             rotationControls
                 .padding(.bottom, 24)
