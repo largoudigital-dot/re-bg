@@ -56,74 +56,69 @@ struct EditorView: View {
     }
     
     var body: some View {
-        GeometryReader { geometry in
-            VStack(spacing: 0) {
-                // Top Navigation Bar
+        photoArea
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.horizontal, 1) // 1px horizontal padding as requested
+            .safeAreaInset(edge: .top, spacing: 0) {
                 navigationBar
-                
-                // Photo Display Area
-                photoArea
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                
-                // Bottom Bar Area (Main or Detail)
-                ZStack {
-                    if let tab = selectedTab {
-                        // Detail Bar
-                        HStack(spacing: 0) {
-                            Button(action: {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    if let _ = selectedAdjustmentParameter {
-                                        selectedAdjustmentParameter = nil
-                                    } else if let _ = selectedColorPicker {
-                                        selectedColorPicker = nil
-                                    } else {
-                                        selectedTab = nil
-                                    }
-                                }
-                            }) {
-                                Image(systemName: "chevron.left")
-                                    .font(.system(size: 20, weight: .bold))
-                                    .foregroundColor(.white)
-                                    .frame(width: 50, height: 90)
-                                    .background(Color.black)
-                            }
-                            
-                            tabContent(for: tab)
-                                .frame(maxWidth: .infinity)
-                                .transition(.move(edge: .trailing))
-                        }
-                    } else {
-                        // Main Tab Bar
-                        tabBar
-                            .transition(.move(edge: .leading))
-                    }
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                bottomBar
+            }
+            .background(Color.black.ignoresSafeArea())
+            .navigationBarHidden(true)
+            .preferredColorScheme(.dark)
+            .onAppear {
+                viewModel.setImage(selectedImage)
+            }
+            .alert("Speichern", isPresented: $showingSaveAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(saveMessage)
+            }
+            .sheet(isPresented: $showingUnsplashPicker) {
+                UnsplashPickerView { newImage in
+                    viewModel.setBackgroundImage(newImage)
                 }
-                .frame(height: bottomBarHeight)
-                .background(Color.black.opacity(0.8))
-                .background(.ultraThinMaterial)
             }
-            .padding(.bottom, geometry.safeAreaInsets.bottom > 0 ? 0 : 10)
-            .background(Color.black)
-        }
-        .navigationBarHidden(true)
-        .preferredColorScheme(.dark)
-        .onAppear {
-            viewModel.setImage(selectedImage)
-        }
-        .alert("Speichern", isPresented: $showingSaveAlert) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text(saveMessage)
-        }
-        .sheet(isPresented: $showingUnsplashPicker) {
-            UnsplashPickerView { newImage in
-                viewModel.setBackgroundImage(newImage)
-            }
-        }
     }
     
-    private var bottomBarHeight: CGFloat {
-        return 90 // Minimal height for all color pickers now
+    private var bottomBar: some View {
+        ZStack {
+            if let tab = selectedTab {
+                // Detail Bar
+                HStack(spacing: 0) {
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            if let _ = selectedAdjustmentParameter {
+                                selectedAdjustmentParameter = nil
+                            } else if let _ = selectedColorPicker {
+                                selectedColorPicker = nil
+                            } else {
+                                selectedTab = nil
+                            }
+                        }
+                    }) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(width: 50, height: 90)
+                            .background(Color.black)
+                    }
+                    
+                    tabContent(for: tab)
+                        .frame(maxWidth: .infinity)
+                        .transition(.move(edge: .trailing))
+                }
+            } else {
+                // Main Tab Bar
+                tabBar
+                    .transition(.move(edge: .leading))
+            }
+        }
+        .frame(height: 90)
+        .background(Color.black.opacity(0.8).ignoresSafeArea(edges: .bottom))
+        .background(.ultraThinMaterial, ignoresSafeAreaEdges: .bottom)
     }
     
     private var navigationBar: some View {
@@ -161,7 +156,7 @@ struct EditorView: View {
         }
         .padding(.horizontal, 8)
         .padding(.bottom, 8)
-        .background(.ultraThinMaterial)
+        .background(.ultraThinMaterial, ignoresSafeAreaEdges: .top)
     }
     
     private var photoArea: some View {
@@ -295,7 +290,7 @@ struct EditorView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
-
+    
     
     private func isTabActive(_ tab: EditorTab) -> Bool {
         switch tab {
@@ -320,13 +315,7 @@ struct EditorView: View {
         }
     }
     
-    private func calculatePhotoHeight(geometry: GeometryProxy) -> CGFloat {
-        let navigationHeight: CGFloat = 44
-        let rotationControlsHeight: CGFloat = 66
-        let bottomBarHeight: CGFloat = 90
-        
-        return geometry.size.height - navigationHeight - rotationControlsHeight - bottomBarHeight
-    }
+
 }
 
 struct TabButton: View {
