@@ -8,30 +8,70 @@
 import SwiftUI
 
 enum AspectRatio: String, CaseIterable, Identifiable {
-    case original = "Original"
+    case free = "Frei"
     case square = "1:1"
-    case fourThree = "4:3"
+    case fourFive = "4:5"
+    case nineSixteen = "9:16"
     case sixteenNine = "16:9"
+    case apple55 = "5.5''"
+    case apple58 = "5.8''"
+    case fourThree = "4:3"
+    case fbHorizontal = "fb"
+    case twoThree = "2:3"
+    case threeTwo = "3:2"
+    case threeFour = "3:4"
+    case original = "Original"
     case custom = "Eigene"
     
     var id: String { rawValue }
     
     var iconName: String {
         switch self {
+        case .free: return "crop"
+        case .square, .fourFive: return "instagram-icon"
+        case .nineSixteen: return "tiktok-icon"
+        case .sixteenNine: return "rectangle.ratio.16.to.9"
+        case .apple55, .apple58: return "apple-icon"
+        case .fourThree: return "facebook-icon"
+        case .fbHorizontal: return "facebook-horizontal-icon"
+        case .twoThree, .threeTwo: return "rectangle.ratio.3.to.2"
+        case .threeFour: return "rectangle.portrait"
         case .original: return "aspectratio"
-        case .square: return "square"
-        case .fourThree: return "rectangle"
-        case .sixteenNine: return "rectangle.fill"
         case .custom: return "slider.horizontal.2.square"
+        }
+    }
+    
+    var displayLabel: String {
+        switch self {
+        case .fbHorizontal: return "" // No label for horizontal FB as in photo
+        default: return self.rawValue
+        }
+    }
+    
+    var usesCustomImage: Bool {
+        switch self {
+        case .square, .fourFive, .nineSixteen, .fourThree, .fbHorizontal, .apple55, .apple58:
+            return true
+        default:
+            return false
         }
     }
     
     var ratio: CGFloat? {
         switch self {
+        case .free: return nil
         case .original: return nil
         case .square: return 1.0
+        case .fourFive: return 4.0 / 5.0
         case .fourThree: return 4.0 / 3.0
+        case .fbHorizontal: return 4.0 / 3.0 // Facebook landscape
+        case .threeFour: return 3.0 / 4.0
         case .sixteenNine: return 16.0 / 9.0
+        case .nineSixteen: return 9.0 / 16.0
+        case .apple55: return 9.0 / 16.0
+        case .apple58: return 1125.0 / 2436.0
+        case .twoThree: return 2.0 / 3.0
+        case .threeTwo: return 3.0 / 2.0
         case .custom: return nil
         }
     }
@@ -39,109 +79,52 @@ enum AspectRatio: String, CaseIterable, Identifiable {
 
 struct CanvasTabView: View {
     @ObservedObject var viewModel: EditorViewModel
-    @State private var customWidth: String = ""
-    @State private var customHeight: String = ""
     
     var body: some View {
         VStack(spacing: 0) {
-            if viewModel.selectedAspectRatio == .custom {
-                // Custom Measurement View
-                HStack(spacing: 20) {
-                    Button(action: {
-                        withAnimation(.spring()) {
-                            viewModel.selectedAspectRatio = .original
-                            viewModel.customSize = nil
-                            viewModel.updateAdjustment()
-                        }
-                    }) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundColor(.white)
-                            .frame(width: 44, height: 44)
-                            .background(Color.white.opacity(0.1))
-                            .clipShape(Circle())
-                    }
-                    
-                    HStack(spacing: 15) {
-                        customInputField(label: "B", value: $customWidth, placeholder: "Breite")
-                        customInputField(label: "H", value: $customHeight, placeholder: "Höhe")
-                    }
-                    
-                    Spacer()
-                }
-                .padding(.horizontal, 16)
-                .frame(height: 90)
-                .transition(.asymmetric(
-                    insertion: .move(edge: .trailing).combined(with: .opacity),
-                    removal: .move(edge: .trailing).combined(with: .opacity)
-                ))
-            } else {
-                // Presets Toolbar
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 20) {
-                        ForEach(AspectRatio.allCases) { ratio in
-                            VStack(spacing: 8) {
-                                Button(action: {
-                                    hapticFeedback()
-                                    viewModel.saveState()
-                                    withAnimation(.spring()) {
-                                        viewModel.selectedAspectRatio = ratio
-                                        if ratio != .custom {
-                                            viewModel.customSize = nil
-                                        }
-                                        viewModel.updateAdjustment()
-                                    }
-                                }) {
+            // Schnitt (Crop) Options - Only show aspect ratio scroll
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(AspectRatio.allCases) { ratio in
+                        Button(action: {
+                            hapticFeedback()
+                            viewModel.saveState()
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                viewModel.selectedAspectRatio = ratio
+                                if ratio != .custom {
+                                    viewModel.customSize = nil
+                                }
+                                viewModel.updateAdjustment()
+                            }
+                        }) {
+                            VStack(spacing: 6) {
+                                if ratio.usesCustomImage {
+                                    Image(ratio.iconName)
+                                        .resizable()
+                                        .renderingMode(.template)
+                                        .aspectRatio(contentMode: .fit)
+                                        .frame(width: 18, height: 18)
+                                } else {
                                     Image(systemName: ratio.iconName)
-                                        .font(.system(size: 20))
-                                        .foregroundColor(viewModel.selectedAspectRatio == ratio ? .blue : .white)
-                                        .frame(width: 44, height: 44)
-                                        .background(viewModel.selectedAspectRatio == ratio ? Color.blue.opacity(0.15) : Color.white.opacity(0.1))
-                                        .cornerRadius(10)
+                                        .font(.system(size: 18, weight: .regular))
                                 }
                                 
-                                Text(ratio.rawValue)
-                                    .font(.system(size: 10, weight: .medium))
-                                    .foregroundColor(viewModel.selectedAspectRatio == ratio ? .blue : .gray)
+                                if !ratio.displayLabel.isEmpty {
+                                    Text(ratio.displayLabel)
+                                        .font(.system(size: 9, weight: .medium))
+                                }
                             }
+                            .foregroundColor(viewModel.selectedAspectRatio == ratio ? .black : .white)
+                            .frame(width: 52, height: 60)
+                            .background(viewModel.selectedAspectRatio == ratio ? Color.white : Color(white: 0.15))
+                            .cornerRadius(8)
                         }
                     }
-                    .padding(.horizontal, 16)
                 }
-                .frame(height: 100)
-                .transition(.asymmetric(
-                    insertion: .move(edge: .leading).combined(with: .opacity),
-                    removal: .move(edge: .leading).combined(with: .opacity)
-                ))
+                .padding(.horizontal, 16)
             }
-        }
-        .padding(.vertical, 0)
-        .onChange(of: customWidth) { _ in updateCustomSize() }
-        .onChange(of: customHeight) { _ in updateCustomSize() }
-    }
-    
-    private func customInputField(label: String, value: Binding<String>, placeholder: String) -> some View {
-        HStack(spacing: 6) {
-            Text(label)
-                .font(.system(size: 12, weight: .bold))
-                .foregroundColor(.gray)
-            
-            TextField(placeholder, text: value)
-                .keyboardType(.numberPad)
-                .textFieldStyle(PlainTextFieldStyle())
-                .padding(6)
-                .background(Color.white.opacity(0.1))
-                .cornerRadius(6)
-                .foregroundColor(.white)
-                .frame(width: 70)
-                .font(.system(size: 14))
-        }
-    }
-    
-    private func updateCustomSize() {
-        if let w = Double(customWidth), let h = Double(customHeight), w > 0, h > 0 {
-            viewModel.customSize = CGSize(width: w, height: h)
-            viewModel.updateAdjustment()
+            .frame(height: 80)
+            .padding(.bottom, 10)
         }
     }
 }

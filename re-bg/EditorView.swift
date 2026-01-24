@@ -8,7 +8,7 @@
 import SwiftUI
 
 enum EditorTab: String, CaseIterable, Identifiable {
-    case canvas = "Leinwand"
+    case crop = "Schnitt"
     case colors = "Farben"
     case adjust = "Anpassen"
     case unsplash = "Fotos"
@@ -17,7 +17,7 @@ enum EditorTab: String, CaseIterable, Identifiable {
     
     var iconName: String {
         switch self {
-        case .canvas: return "square.on.square"
+        case .crop: return "crop"
         case .colors: return "paintpalette"
         case .adjust: return "slider.horizontal.3"
         case .unsplash: return "photo.on.rectangle"
@@ -47,6 +47,7 @@ struct EditorView: View {
     @State private var showingSaveAlert = false
     @State private var saveMessage = ""
     @State private var showingUnsplashPicker = false
+    @State private var isShowingOriginal = false
     @Environment(\.dismiss) private var dismiss
     
     let selectedImage: UIImage
@@ -165,12 +166,12 @@ struct EditorView: View {
             
             if let original = viewModel.originalImage {
                 ZoomableImageView(
-                    foreground: viewModel.foregroundImage,
-                    background: viewModel.backgroundImage,
+                    foreground: isShowingOriginal ? original : viewModel.foregroundImage,
+                    background: isShowingOriginal ? nil : viewModel.backgroundImage,
                     original: original,
-                    backgroundColor: viewModel.backgroundColor,
-                    gradientColors: viewModel.gradientColors,
-                    activeLayer: selectedTab == .canvas ? .canvas : ((selectedTab == .unsplash || selectedTab == .colors) ? .background : .foreground)
+                    backgroundColor: isShowingOriginal ? nil : viewModel.backgroundColor,
+                    gradientColors: isShowingOriginal ? nil : viewModel.gradientColors,
+                    activeLayer: (selectedTab == .unsplash || selectedTab == .colors) ? .background : .foreground
                 )
                 .id("photo-\(viewModel.rotation)")
             }
@@ -197,6 +198,11 @@ struct EditorView: View {
             rotationControls
                 .padding(.bottom, 24)
         }
+        .overlay(alignment: .topTrailing) {
+             compareButton
+                 .padding(.top, 16)
+                 .padding(.trailing, 16)
+         }
     }
     
     private var rotationControls: some View {
@@ -267,6 +273,34 @@ struct EditorView: View {
         .padding(.vertical, 8)
     }
     
+    private var compareButton: some View {
+        ZStack {
+            Image(systemName: "square.split.2x1")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundColor(isShowingOriginal ? .blue : .white)
+                .frame(width: 44, height: 44)
+                .background(Color.black.opacity(0.5))
+                .background(.ultraThinMaterial)
+                .clipShape(Circle())
+        }
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    if !isShowingOriginal {
+                        hapticFeedback()
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isShowingOriginal = true
+                        }
+                    }
+                }
+                .onEnded { _ in
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isShowingOriginal = false
+                    }
+                }
+        )
+    }
+    
     private var tabBar: some View {
         HStack(spacing: 0) {
             ForEach(EditorTab.allCases) { tab in
@@ -294,7 +328,7 @@ struct EditorView: View {
     
     private func isTabActive(_ tab: EditorTab) -> Bool {
         switch tab {
-        case .canvas: return viewModel.isCanvasActive
+        case .crop: return viewModel.isCanvasActive
         case .adjust: return viewModel.isAdjustActive
         case .colors: return viewModel.isColorActive
         case .unsplash: return false
@@ -304,7 +338,7 @@ struct EditorView: View {
     @ViewBuilder
     private func tabContent(for tab: EditorTab) -> some View {
         switch tab {
-        case .canvas:
+        case .crop:
             CanvasTabView(viewModel: viewModel)
         case .adjust:
             AdjustmentTabView(viewModel: viewModel, selectedParameter: $selectedAdjustmentParameter)
@@ -314,6 +348,8 @@ struct EditorView: View {
             EmptyView()
         }
     }
+
+
     
 
 }
@@ -363,38 +399,5 @@ struct PlaceholderTabView: View {
         .frame(maxWidth: .infinity)
         .frame(height: 200)
         .background(Color(hex: "#374151"))
-    }
-}
-
-// Haptic Feedback Helper
-func hapticFeedback() {
-    let generator = UISelectionFeedbackGenerator()
-    generator.selectionChanged()
-}
-
-// Color extension for hex colors
-extension Color {
-    init(hex: String) {
-        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var int: UInt64 = 0
-        Scanner(string: hex).scanHexInt64(&int)
-        let a, r, g, b: UInt64
-        switch hex.count {
-        case 3: // RGB (12-bit)
-            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
-        case 6: // RGB (24-bit)
-            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
-        case 8: // ARGB (32-bit)
-            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
-        default:
-            (a, r, g, b) = (255, 0, 0, 0)
-        }
-        self.init(
-            .sRGB,
-            red: Double(r) / 255,
-            green: Double(g) / 255,
-            blue:  Double(b) / 255,
-            opacity: Double(a) / 255
-        )
     }
 }
