@@ -201,7 +201,7 @@ struct EditorView: View {
                             gradientColors: isShowingOriginal ? nil : viewModel.gradientColors,
                             activeLayer: (selectedTab == .unsplash || selectedTab == .colors) ? .background : .foreground
                         )
-                        .id("photo-\(viewModel.rotation)")
+                        .id("photo-\(viewModel.rotation)-\(viewModel.originalImage?.hashValue ?? 0)")
                     }
                     
                     if viewModel.isRemovingBackground {

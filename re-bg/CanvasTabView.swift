@@ -28,11 +28,11 @@ enum AspectRatio: String, CaseIterable, Identifiable {
     var iconName: String {
         switch self {
         case .free: return "crop"
-        case .square, .fourFive: return "instagram-icon"
-        case .nineSixteen: return "tiktok-icon"
+        case .square, .fourFive: return "instagram"
+        case .nineSixteen: return "tiktok"
         case .sixteenNine: return "rectangle.ratio.16.to.9"
         case .apple55, .apple58: return "apple-icon"
-        case .fourThree: return "facebook-icon"
+        case .fourThree: return "facebook"
         case .fbHorizontal: return "facebook-horizontal-icon"
         case .twoThree, .threeTwo: return "rectangle.ratio.3.to.2"
         case .threeFour: return "rectangle.portrait"
