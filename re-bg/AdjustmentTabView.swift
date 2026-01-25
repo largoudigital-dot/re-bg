@@ -38,7 +38,7 @@ struct AdjustmentTabView: View {
                     VStack(spacing: 4) {
                         Text(parameter.rawValue)
                             .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(.white)
+                            .foregroundColor(.primary)
                         
                         SliderView(parameter: parameter, viewModel: viewModel)
                         
@@ -56,10 +56,10 @@ struct AdjustmentTabView: View {
                         VStack(spacing: 4) {
                             Image(systemName: "arrow.counterclockwise")
                                 .font(.system(size: 18, weight: .bold))
-                                .foregroundColor(.white)
+                                .foregroundColor(.primary)
                             Text("Reset")
                                 .font(.system(size: 9))
-                                .foregroundColor(.white)
+                                .foregroundColor(.primary)
                         }
                         .frame(width: 44, height: 90)
                     }
@@ -80,14 +80,14 @@ struct AdjustmentTabView: View {
                                 VStack(spacing: 8) {
                                     Image(systemName: parameter.iconName)
                                         .font(.system(size: 22))
-                                        .foregroundColor(.white)
+                                        .foregroundColor(.primary)
                                     
                                     Text(parameter.rawValue)
                                         .font(.system(size: 10, weight: .medium))
-                                        .foregroundColor(.white)
+                                        .foregroundColor(.primary)
                                 }
                                 .frame(width: 70, height: 70)
-                                .background(Color.white.opacity(0.1))
+                                .background(Color.black.opacity(0.05))
                                 .cornerRadius(12)
                             }
                         }
@@ -100,13 +100,13 @@ struct AdjustmentTabView: View {
                             VStack(spacing: 8) {
                                 Image(systemName: "arrow.counterclockwise.circle")
                                     .font(.system(size: 22))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(.primary)
                                 Text("Reset")
                                     .font(.system(size: 10, weight: .medium))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(.primary)
                             }
                             .frame(width: 70, height: 70)
-                            .background(Color.white.opacity(0.1))
+                            .background(Color.black.opacity(0.05))
                             .cornerRadius(12)
                         }
                     }

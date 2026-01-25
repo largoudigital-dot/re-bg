@@ -114,9 +114,13 @@ struct CanvasTabView: View {
                                         .font(.system(size: 9, weight: .medium))
                                 }
                             }
-                            .foregroundColor(viewModel.selectedAspectRatio == ratio ? .black : .white)
+                            .foregroundColor(viewModel.selectedAspectRatio == ratio ? .black : .primary)
                             .frame(width: 52, height: 60)
-                            .background(viewModel.selectedAspectRatio == ratio ? Color.white : Color(white: 0.15))
+                            .background(viewModel.selectedAspectRatio == ratio ? Color.white : Color(white: 0.9))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+                            )
                             .cornerRadius(8)
                         }
                     }

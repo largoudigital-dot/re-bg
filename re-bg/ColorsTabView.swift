@@ -54,7 +54,7 @@ struct ColorsTabView: View {
                                 Text(tab.rawValue)
                                     .font(.system(size: 10, weight: .medium))
                             }
-                            .foregroundColor(.white)
+                            .foregroundColor(.primary)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 8)
                         }
@@ -118,7 +118,7 @@ struct ColorCircle: View {
                     .frame(width: 44, height: 44)
                     .overlay(
                         Circle()
-                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                            .stroke(Color.black.opacity(0.1), lineWidth: 1)
                     )
                 
                 if isSelected {

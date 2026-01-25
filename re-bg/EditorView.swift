@@ -66,9 +66,9 @@ struct EditorView: View {
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 bottomBar
             }
-            .background(Color.black.ignoresSafeArea())
+            .background(Color.white.ignoresSafeArea())
             .navigationBarHidden(true)
-            .preferredColorScheme(.dark)
+            .preferredColorScheme(.light)
             .onAppear {
                 viewModel.setImage(selectedImage)
             }
@@ -102,9 +102,9 @@ struct EditorView: View {
                     }) {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(.white)
+                            .foregroundColor(.primary)
                             .frame(width: 50, height: 90)
-                            .background(Color.black)
+                            .background(Color.white)
                     }
                     
                     tabContent(for: tab)
@@ -118,7 +118,7 @@ struct EditorView: View {
             }
         }
         .frame(height: 90)
-        .background(Color.black.opacity(0.8).ignoresSafeArea(edges: .bottom))
+        .background(Color.white.opacity(0.8).ignoresSafeArea(edges: .bottom))
         .background(.ultraThinMaterial, ignoresSafeAreaEdges: .bottom)
     }
     
@@ -131,7 +131,7 @@ struct EditorView: View {
                 }) {
                     Image(systemName: "xmark")
                         .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(.primary)
                         .frame(width: 44, height: 44)
                 }
                 
@@ -146,14 +146,14 @@ struct EditorView: View {
                 }) {
                     Image(systemName: "square.and.arrow.down")
                         .font(.system(size: 20, weight: .regular))
-                        .foregroundColor(.white)
+                        .foregroundColor(.primary)
                         .frame(width: 44, height: 44)
                 }
             }
             
             Text("Bearbeiten")
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(.white)
+                .foregroundColor(.primary)
         }
         .padding(.horizontal, 8)
         .padding(.bottom, 8)
@@ -161,48 +161,71 @@ struct EditorView: View {
     }
     
     private var photoArea: some View {
-        ZStack {
-            Color.clear
+        GeometryReader { geometry in
+            let availableWidth = geometry.size.width - 2 // Considering horizontal padding
+            let availableHeight = geometry.size.height
             
-            if let original = viewModel.originalImage {
-                ZoomableImageView(
-                    foreground: isShowingOriginal ? original : viewModel.foregroundImage,
-                    background: isShowingOriginal ? nil : viewModel.backgroundImage,
-                    original: original,
-                    backgroundColor: isShowingOriginal ? nil : viewModel.backgroundColor,
-                    gradientColors: isShowingOriginal ? nil : viewModel.gradientColors,
-                    activeLayer: (selectedTab == .unsplash || selectedTab == .colors) ? .background : .foreground
-                )
-                .id("photo-\(viewModel.rotation)")
-            }
+            let imageSize = viewModel.originalImage?.size ?? CGSize(width: 1, height: 1)
+            let imageAspectRatio = imageSize.width / imageSize.height
+            let containerAspectRatio = availableWidth / availableHeight
             
-            if viewModel.isRemovingBackground {
+            let fitSize: CGSize = {
+                if imageAspectRatio > containerAspectRatio {
+                    // Width is limiting
+                    return CGSize(width: availableWidth, height: availableWidth / imageAspectRatio)
+                } else {
+                    // Height is limiting
+                    return CGSize(width: availableHeight * imageAspectRatio, height: availableHeight)
+                }
+            }()
+            
+            ZStack {
+                Color.clear
+                
                 ZStack {
-                    Color.black.opacity(0.4)
+                    if let original = viewModel.originalImage {
+                        ZoomableImageView(
+                            foreground: isShowingOriginal ? original : viewModel.foregroundImage,
+                            background: isShowingOriginal ? nil : viewModel.backgroundImage,
+                            original: original,
+                            backgroundColor: isShowingOriginal ? nil : viewModel.backgroundColor,
+                            gradientColors: isShowingOriginal ? nil : viewModel.gradientColors,
+                            activeLayer: (selectedTab == .unsplash || selectedTab == .colors) ? .background : .foreground
+                        )
+                        .id("photo-\(viewModel.rotation)")
+                    }
                     
-                    VStack(spacing: 12) {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            .scaleEffect(1.2)
-                        
-                        Text("Hintergrund wird entfernt...")
-                            .foregroundColor(.white)
-                            .font(.system(size: 14, weight: .medium))
+                    if viewModel.isRemovingBackground {
+                        ZStack {
+                            Color.white.opacity(0.7)
+                            
+                            VStack(spacing: 12) {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .primary))
+                                    .scaleEffect(1.2)
+                                
+                                Text("Hintergrund wird entfernt...")
+                                    .foregroundColor(.primary)
+                                    .font(.system(size: 14, weight: .medium))
+                            }
+                        }
                     }
                 }
+                .frame(width: fitSize.width, height: fitSize.height)
+                .background(Color(white: 0.95))
+                .clipped()
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay(alignment: .bottom) {
+                rotationControls
+                    .padding(.bottom, 24)
+            }
+            .overlay(alignment: .topTrailing) {
+                 compareButton
+                     .padding(.top, 16)
+                     .padding(.trailing, 16)
+             }
         }
-        .background(Color.black)
-        .clipped()
-        .overlay(alignment: .bottom) {
-            rotationControls
-                .padding(.bottom, 24)
-        }
-        .overlay(alignment: .topTrailing) {
-             compareButton
-                 .padding(.top, 16)
-                 .padding(.trailing, 16)
-         }
     }
     
     private var rotationControls: some View {
@@ -215,14 +238,14 @@ struct EditorView: View {
                 }) {
                     Image(systemName: "arrow.uturn.backward")
                         .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(viewModel.canUndo ? .white : .white.opacity(0.3))
+                        .foregroundColor(viewModel.canUndo ? .primary : .primary.opacity(0.3))
                         .frame(width: 44, height: 44)
                 }
                 .disabled(!viewModel.canUndo)
                 
                 Divider()
                     .frame(height: 20)
-                    .background(Color.white.opacity(0.2))
+                    .background(Color.primary.opacity(0.2))
                 
                 Button(action: {
                     hapticFeedback()
@@ -230,14 +253,15 @@ struct EditorView: View {
                 }) {
                     Image(systemName: "arrow.uturn.forward")
                         .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(viewModel.canRedo ? .white : .white.opacity(0.3))
+                        .foregroundColor(viewModel.canRedo ? .primary : .primary.opacity(0.3))
                         .frame(width: 44, height: 44)
                 }
                 .disabled(!viewModel.canRedo)
             }
-            .background(Color.black.opacity(0.5))
+            .background(Color.white.opacity(0.7))
             .background(.ultraThinMaterial)
             .clipShape(Capsule())
+            .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
             
             // Rotation Group
             HStack(spacing: 0) {
@@ -247,13 +271,13 @@ struct EditorView: View {
                 }) {
                     Image(systemName: "rotate.left")
                         .font(.system(size: 18))
-                        .foregroundColor(.white)
+                        .foregroundColor(.primary)
                         .frame(width: 44, height: 44)
                 }
                 
                 Divider()
                     .frame(height: 20)
-                    .background(Color.white.opacity(0.2))
+                    .background(Color.primary.opacity(0.2))
                 
                 Button(action: {
                     hapticFeedback()
@@ -261,13 +285,14 @@ struct EditorView: View {
                 }) {
                     Image(systemName: "rotate.right")
                         .font(.system(size: 18))
-                        .foregroundColor(.white)
+                        .foregroundColor(.primary)
                         .frame(width: 44, height: 44)
                 }
             }
-            .background(Color.black.opacity(0.5))
+            .background(Color.white.opacity(0.7))
             .background(.ultraThinMaterial)
             .clipShape(Capsule())
+            .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
@@ -277,11 +302,12 @@ struct EditorView: View {
         ZStack {
             Image(systemName: "square.split.2x1")
                 .font(.system(size: 18, weight: .bold))
-                .foregroundColor(isShowingOriginal ? .blue : .white)
+                .foregroundColor(isShowingOriginal ? .blue : .primary)
                 .frame(width: 44, height: 44)
-                .background(Color.black.opacity(0.5))
+                .background(Color.white.opacity(0.7))
                 .background(.ultraThinMaterial)
                 .clipShape(Circle())
+                .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
         }
         .gesture(
             DragGesture(minimumDistance: 0)
@@ -379,7 +405,7 @@ struct TabButton: View {
                 Text(tab.rawValue)
                     .font(.system(size: 10, weight: .medium))
             }
-            .foregroundColor(isSelected ? .blue : .gray)
+            .foregroundColor(isSelected ? .blue : .primary.opacity(0.6))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)
         }
