@@ -142,21 +142,22 @@ struct AspectRatioIcon: View {
         let iconHeight: CGFloat = displayRatio > 1 ? size / displayRatio : size
         
         ZStack {
-            RoundedRectangle(cornerRadius: 2)
-                .stroke(isSelected ? Color.black : Color.primary.opacity(0.8), lineWidth: 1.2)
-                .frame(width: iconWidth, height: iconHeight)
-            
             if ratio.usesCustomImage {
                 Image(ratio.iconName)
                     .resizable()
                     .renderingMode(.template)
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: min(iconWidth, iconHeight) * 0.45) // Made significantly smaller
+                    .frame(width: 24, height: 24) // Larger size, no frame
             } else if ratio == .original || ratio == .free || ratio == .custom {
                 Image(systemName: ratio.iconName)
-                    .font(.system(size: 10))
+                    .font(.system(size: 20)) // Consistent with other buttons
+            } else {
+                // Proportional rectangle for generic ratios
+                RoundedRectangle(cornerRadius: 2)
+                    .stroke(isSelected ? Color.black : Color.primary.opacity(0.8), lineWidth: 1.2)
+                    .frame(width: iconWidth, height: iconHeight)
             }
         }
-        .frame(width: 24, height: 24)
+        .frame(width: 28, height: 28)
     }
 }
