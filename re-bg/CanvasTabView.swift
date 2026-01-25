@@ -35,10 +35,7 @@ enum AspectRatio: String, CaseIterable, Identifiable {
     }
     
     var displayLabel: String {
-        switch self {
-        case .fbHorizontal: return "" // No label for horizontal FB as in photo
-        default: return self.rawValue
-        }
+        self.rawValue
     }
     
     var usesCustomImage: Bool {
@@ -57,6 +54,8 @@ enum AspectRatio: String, CaseIterable, Identifiable {
         case .square: return 1.0
         case .fourFive: return 4.0 / 5.0
         case .fourThree: return 4.0 / 3.0
+        case .sixteenNine: return 16.0 / 9.0
+        case .nineSixteen: return 9.0 / 16.0
         case .apple55: return 9.0 / 16.0
         case .apple58: return 1125.0 / 2436.0
         case .custom: return nil
