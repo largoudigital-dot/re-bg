@@ -16,10 +16,6 @@ enum AspectRatio: String, CaseIterable, Identifiable {
     case apple55 = "5.5''"
     case apple58 = "5.8''"
     case fourThree = "4:3"
-    case fbHorizontal = "fb"
-    case twoThree = "2:3"
-    case threeTwo = "3:2"
-    case threeFour = "3:4"
     case original = "Original"
     case custom = "Eigene"
     
@@ -33,9 +29,6 @@ enum AspectRatio: String, CaseIterable, Identifiable {
         case .sixteenNine: return "rectangle.ratio.16.to.9"
         case .apple55, .apple58: return "apple-icon"
         case .fourThree: return "facebook"
-        case .fbHorizontal: return "facebook-horizontal-icon"
-        case .twoThree, .threeTwo: return "rectangle.ratio.3.to.2"
-        case .threeFour: return "rectangle.portrait"
         case .original: return "aspectratio"
         case .custom: return "slider.horizontal.2.square"
         }
@@ -50,7 +43,7 @@ enum AspectRatio: String, CaseIterable, Identifiable {
     
     var usesCustomImage: Bool {
         switch self {
-        case .square, .fourFive, .nineSixteen, .fourThree, .fbHorizontal, .apple55, .apple58:
+        case .square, .fourFive, .nineSixteen, .fourThree:
             return true
         default:
             return false
@@ -64,14 +57,8 @@ enum AspectRatio: String, CaseIterable, Identifiable {
         case .square: return 1.0
         case .fourFive: return 4.0 / 5.0
         case .fourThree: return 4.0 / 3.0
-        case .fbHorizontal: return 4.0 / 3.0 // Facebook landscape
-        case .threeFour: return 3.0 / 4.0
-        case .sixteenNine: return 16.0 / 9.0
-        case .nineSixteen: return 9.0 / 16.0
         case .apple55: return 9.0 / 16.0
         case .apple58: return 1125.0 / 2436.0
-        case .twoThree: return 2.0 / 3.0
-        case .threeTwo: return 3.0 / 2.0
         case .custom: return nil
         }
     }
