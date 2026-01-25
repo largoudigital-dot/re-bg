@@ -167,15 +167,24 @@ struct EditorView: View {
             
             let imageSize = viewModel.originalImage?.size ?? CGSize(width: 1, height: 1)
             let imageAspectRatio = imageSize.width / imageSize.height
+            
+            // Determine the target aspect ratio based on user selection
+            let targetAspectRatio: CGFloat = {
+                if let ratio = viewModel.selectedAspectRatio.ratio {
+                    return ratio
+                }
+                return imageAspectRatio // Default to original image ratio for .free, .original, etc.
+            }()
+            
             let containerAspectRatio = availableWidth / availableHeight
             
             let fitSize: CGSize = {
-                if imageAspectRatio > containerAspectRatio {
+                if targetAspectRatio > containerAspectRatio {
                     // Width is limiting
-                    return CGSize(width: availableWidth, height: availableWidth / imageAspectRatio)
+                    return CGSize(width: availableWidth, height: availableWidth / targetAspectRatio)
                 } else {
                     // Height is limiting
-                    return CGSize(width: availableHeight * imageAspectRatio, height: availableHeight)
+                    return CGSize(width: availableHeight * targetAspectRatio, height: availableHeight)
                 }
             }()
             
