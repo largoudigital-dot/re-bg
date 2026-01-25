@@ -151,7 +151,7 @@ struct AspectRatioIcon: View {
                     .resizable()
                     .renderingMode(.template)
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: min(iconWidth, iconHeight) * 0.7)
+                    .frame(width: min(iconWidth, iconHeight) * 0.45) // Made significantly smaller
             } else if ratio == .original || ratio == .free || ratio == .custom {
                 Image(systemName: ratio.iconName)
                     .font(.system(size: 10))
