@@ -98,16 +98,7 @@ struct CanvasTabView: View {
                             }
                         }) {
                             VStack(spacing: 6) {
-                                if ratio.usesCustomImage {
-                                    Image(ratio.iconName)
-                                        .resizable()
-                                        .renderingMode(.template)
-                                        .aspectRatio(contentMode: .fit)
-                                        .frame(width: 18, height: 18)
-                                } else {
-                                    Image(systemName: ratio.iconName)
-                                        .font(.system(size: 18, weight: .regular))
-                                }
+                                AspectRatioIcon(ratio: ratio, isSelected: viewModel.selectedAspectRatio == ratio)
                                 
                                 if !ratio.displayLabel.isEmpty {
                                     Text(ratio.displayLabel)
@@ -130,5 +121,42 @@ struct CanvasTabView: View {
             .frame(height: 80)
             .padding(.bottom, 10)
         }
+    }
+}
+
+struct AspectRatioIcon: View {
+    let ratio: AspectRatio
+    let isSelected: Bool
+    
+    var body: some View {
+        let size: CGFloat = 20
+        let displayRatio: CGFloat = {
+            if let r = ratio.ratio {
+                return r
+            }
+            return 1.0 // Default for Original/Free/Custom
+        }()
+        
+        // Calculate icon dimensions to fit within a 20x20 bounding box
+        let iconWidth: CGFloat = displayRatio > 1 ? size : size * displayRatio
+        let iconHeight: CGFloat = displayRatio > 1 ? size / displayRatio : size
+        
+        ZStack {
+            RoundedRectangle(cornerRadius: 2)
+                .stroke(isSelected ? Color.black : Color.primary.opacity(0.8), lineWidth: 1.2)
+                .frame(width: iconWidth, height: iconHeight)
+            
+            if ratio.usesCustomImage {
+                Image(ratio.iconName)
+                    .resizable()
+                    .renderingMode(.template)
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: min(iconWidth, iconHeight) * 0.7)
+            } else if ratio == .original || ratio == .free || ratio == .custom {
+                Image(systemName: ratio.iconName)
+                    .font(.system(size: 10))
+            }
+        }
+        .frame(width: 24, height: 24)
     }
 }
