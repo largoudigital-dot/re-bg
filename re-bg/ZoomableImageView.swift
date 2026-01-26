@@ -57,6 +57,9 @@ struct ZoomableImageView: View {
     
     private let snapThreshold: CGFloat = 10
     
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
                 // --- BACKGROUND DESELECTION LAYER ---
                 // This layer captures taps outside the stickers to deselect them
                 // without letting the tap reach the image layers.
