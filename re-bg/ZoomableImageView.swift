@@ -142,6 +142,13 @@ struct ZoomableImageView: View {
                 .rotationEffect(.degrees(rotation))
                 .scaleEffect(canvasScale)
                 .offset(canvasOffset)
+                .onTapGesture {
+                    if selectedStickerId != nil {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            selectedStickerId = nil
+                        }
+                    }
+                }
                 // --- END CANVAS CONTAINER ---
                 
                 // 3. Guidelines (Top)
@@ -184,6 +191,13 @@ struct ZoomableImageView: View {
                 if interactingLayer == nil {
                     interactingLayer = targetLayer
                     hapticFeedback()
+                    
+                    // Deselect stickers when starting to interact with any image layer
+                    if selectedStickerId != nil {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            selectedStickerId = nil
+                        }
+                    }
                 }
                 updatePosition(for: targetLayer, translation: value.translation)
             }
@@ -314,52 +328,66 @@ struct StickerView: View {
     @State private var currentRotation: Angle = .zero
     
     var body: some View {
-        Text(sticker.content)
-            .font(.system(size: 60))
-            .padding(10)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(isSelected ? Color.white : Color.clear, style: StrokeStyle(lineWidth: 2, dash: [5]))
-            )
-            .scaleEffect(sticker.scale * currentScale)
-            .rotationEffect(sticker.rotation + currentRotation)
-            .position(
-                x: sticker.position.x * containerSize.width + dragOffset.width,
-                y: sticker.position.y * containerSize.height + dragOffset.height
-            )
-            .onTapGesture {
-                onSelect()
-            }
-            .highPriorityGesture(
-                DragGesture()
-                    .onChanged { value in
-                        dragOffset = value.translation
+        ZStack {
+            // Invisible larger hit area for easier selection
+            Color.clear
+                .frame(width: 100, height: 100)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    onSelect()
+                }
+            
+            Text(sticker.content)
+                .font(.system(size: 60))
+                .padding(15)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(isSelected ? Color.white : Color.clear, style: StrokeStyle(lineWidth: 3, dash: [8, 4]))
+                        .shadow(color: .black.opacity(0.3), radius: 2)
+                )
+        }
+        .scaleEffect(sticker.scale * currentScale)
+        .rotationEffect(sticker.rotation + currentRotation)
+        .position(
+            x: sticker.position.x * containerSize.width + dragOffset.width,
+            y: sticker.position.y * containerSize.height + dragOffset.height
+        )
+        // High priority gestures for stickers so they consume interactions when active
+        .highPriorityGesture(
+            DragGesture()
+                .onChanged { value in
+                    if dragOffset == .zero {
+                        onSelect()
+                        hapticFeedback()
                     }
-                    .onEnded { value in
-                        sticker.position.x += value.translation.width / containerSize.width
-                        sticker.position.y += value.translation.height / containerSize.height
-                        dragOffset = .zero
-                    }
-            )
-            .simultaneousGesture(
-                MagnificationGesture()
-                    .onChanged { value in
-                        currentScale = value
-                    }
-                    .onEnded { value in
-                        sticker.scale *= value
-                        currentScale = 1.0
-                    }
-            )
-            .simultaneousGesture(
-                RotationGesture()
-                    .onChanged { value in
-                        currentRotation = value
-                    }
-                    .onEnded { value in
-                        sticker.rotation += value
-                        currentRotation = .zero
-                    }
-            )
+                    dragOffset = value.translation
+                }
+                .onEnded { value in
+                    sticker.position.x += value.translation.width / containerSize.width
+                    sticker.position.y += value.translation.height / containerSize.height
+                    dragOffset = .zero
+                }
+        )
+        // Magnification and Rotation only active when selected to avoid accidental triggers
+        .simultaneousGesture(
+            isSelected ? MagnificationGesture()
+                .onChanged { value in
+                    currentScale = value
+                }
+                .onEnded { value in
+                    sticker.scale *= value
+                    currentScale = 1.0
+                } : nil
+        )
+        .simultaneousGesture(
+            isSelected ? RotationGesture()
+                .onChanged { value in
+                    currentRotation = value
+                }
+                .onEnded { value in
+                    sticker.rotation += value
+                    currentRotation = .zero
+                } : nil
+        )
     }
 }
