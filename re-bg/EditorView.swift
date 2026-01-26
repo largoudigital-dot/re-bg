@@ -264,10 +264,14 @@ struct EditorView: View {
                     .padding(.bottom, 24)
             }
             .overlay(alignment: .topTrailing) {
-                 compareButton
-                     .padding(.top, 16)
-                     .padding(.trailing, 16)
-             }
+                VStack(spacing: 12) {
+                    compareButton
+                    
+                    stickerButton
+                }
+                .padding(.top, 16)
+                .padding(.trailing, 16)
+            }
         }
     }
     
@@ -368,6 +372,22 @@ struct EditorView: View {
                     }
                 }
         )
+    }
+    
+    private var stickerButton: some View {
+        Button(action: {
+            hapticFeedback()
+            // Action to show emoji picker
+        }) {
+            Image(systemName: "face.smiling")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundColor(.primary)
+                .frame(width: 44, height: 44)
+                .background(Color.white.opacity(0.7))
+                .background(.ultraThinMaterial)
+                .clipShape(Circle())
+                .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
+        }
     }
     
     private var tabBar: some View {
