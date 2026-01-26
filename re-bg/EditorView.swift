@@ -82,6 +82,13 @@ struct EditorView: View {
                     viewModel.setBackgroundImage(newImage)
                 }
             }
+            .sheet(isPresented: $viewModel.showingEmojiPicker) {
+                EmojiPickerView { emoji in
+                    viewModel.addSticker(emoji)
+                    viewModel.showingEmojiPicker = false
+                }
+                .presentationDetents([.medium, .large])
+            }
     }
     
     private var bottomBar: some View {
@@ -377,7 +384,7 @@ struct EditorView: View {
     private var stickerButton: some View {
         Button(action: {
             hapticFeedback()
-            // Action to show emoji picker
+            viewModel.showingEmojiPicker = true
         }) {
             Image(systemName: "face.smiling")
                 .font(.system(size: 18, weight: .bold))

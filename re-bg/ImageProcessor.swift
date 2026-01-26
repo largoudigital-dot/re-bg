@@ -266,7 +266,8 @@ class ImageProcessor {
                               backgroundColor: Color?,
                               gradientColors: [Color]?,
                               backgroundImage: UIImage?,
-                              cropRect: CGRect? = nil) -> UIImage? {
+                              cropRect: CGRect? = nil,
+                              stickers: [Sticker] = []) -> UIImage? {
         var processedImage = original
         
         // 0. Apply normalized crop rect if provided (Free Crop)
@@ -306,20 +307,60 @@ class ImageProcessor {
                                           blur: blur,
                                           rotation: rotation) ?? processedImage
         
-        // 3. Composite with background if available
         if let background = backgroundImage {
-            return composite(foreground: finalForeground, background: background)
+            processedImage = composite(foreground: finalForeground, background: background) ?? finalForeground
         } else if let colors = gradientColors {
             if let gradientBg = self.createGradientImage(colors: colors, size: finalForeground.size) {
-                return composite(foreground: finalForeground, background: gradientBg)
+                processedImage = composite(foreground: finalForeground, background: gradientBg) ?? finalForeground
             }
         } else if let color = backgroundColor {
             if let colorBg = self.createColorImage(color: color, size: finalForeground.size) {
-                return composite(foreground: finalForeground, background: colorBg)
+                processedImage = composite(foreground: finalForeground, background: colorBg) ?? finalForeground
             }
+        } else {
+            processedImage = finalForeground
         }
         
-        return finalForeground
+        // 4. Render Stickers
+        if !stickers.isEmpty {
+            processedImage = renderStickers(stickers, onto: processedImage) ?? processedImage
+        }
+        
+        return processedImage
+    }
+    
+    private func renderStickers(_ stickers: [Sticker], onto image: UIImage) -> UIImage? {
+        let size = image.size
+        UIGraphicsBeginImageContextWithOptions(size, false, image.scale)
+        
+        image.draw(in: CGRect(origin: .zero, size: size))
+        
+        let context = UIGraphicsGetCurrentContext()
+        
+        for sticker in stickers {
+            let stickerSize = size.width * 0.15 * sticker.scale // Base size is 15% of width
+            let x = sticker.position.x * size.width
+            let y = sticker.position.y * size.height
+            
+            context?.saveGState()
+            context?.translateBy(x: x, y: y)
+            context?.rotate(by: CGFloat(sticker.rotation.radians))
+            
+            let rect = CGRect(x: -stickerSize / 2, y: -stickerSize / 2, width: stickerSize, height: stickerSize)
+            
+            let string = sticker.content as NSString
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: stickerSize * 0.8)
+            ]
+            
+            string.draw(in: rect, withAttributes: attributes)
+            
+            context?.restoreGState()
+        }
+        
+        let result = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        return result
     }
     
     private func createColorImage(color: Color, size: CGSize) -> UIImage? {

@@ -21,6 +21,7 @@ struct EditorState: Equatable {
     var gradientColors: [Color]?
     var backgroundImage: UIImage?
     var cropRect: CGRect? // Normalized applied crop
+    var stickers: [Sticker]
     
     static func == (lhs: EditorState, rhs: EditorState) -> Bool {
         return lhs.selectedFilter == rhs.selectedFilter &&
@@ -34,7 +35,8 @@ struct EditorState: Equatable {
             lhs.backgroundColor == rhs.backgroundColor &&
             lhs.gradientColors == rhs.gradientColors &&
             lhs.backgroundImage === rhs.backgroundImage &&
-            lhs.cropRect == rhs.cropRect
+            lhs.cropRect == rhs.cropRect &&
+            lhs.stickers == rhs.stickers
     }
 }
 
@@ -65,6 +67,10 @@ class EditorViewModel: ObservableObject {
     // Crop State
     @Published var isCropping = false
     @Published var appliedCropRect: CGRect? = nil
+    
+    // Sticker State
+    @Published var stickers: [Sticker] = []
+    @Published var showingEmojiPicker = false
     
     // Undo/Redo Stacks
     private var undoStack: [EditorState] = []
@@ -123,7 +129,8 @@ class EditorViewModel: ObservableObject {
             backgroundColor: backgroundColor,
             gradientColors: gradientColors,
             backgroundImage: backgroundImage,
-            cropRect: appliedCropRect
+            cropRect: appliedCropRect,
+            stickers: stickers
         )
     }
     
@@ -182,6 +189,7 @@ class EditorViewModel: ObservableObject {
         gradientColors = state.gradientColors
         backgroundImage = state.backgroundImage
         appliedCropRect = state.cropRect
+        stickers = state.stickers
     }
     
     func setBackgroundImage(_ image: UIImage) {
@@ -219,6 +227,33 @@ class EditorViewModel: ObservableObject {
         
         saveState()
         appliedCropRect = newCumulativeCrop
+        updateProcessedImage()
+    }
+    
+    // MARK: - Sticker Management
+    
+    func addSticker(_ content: String) {
+        saveState()
+        let newSticker = Sticker(content: content)
+        stickers.append(newSticker)
+        updateProcessedImage()
+    }
+    
+    func updateSticker(_ sticker: Sticker) {
+        if let index = stickers.firstIndex(where: { $0.id == sticker.id }) {
+            // We don't save state on every drag update, but we might want to on end
+            stickers[index] = sticker
+            updateProcessedImage()
+        }
+    }
+    
+    func finalizeStickerUpdate() {
+        saveState()
+    }
+    
+    func removeSticker(id: UUID) {
+        saveState()
+        stickers.removeAll(where: { $0.id == id })
         updateProcessedImage()
     }
     
@@ -317,7 +352,8 @@ class EditorViewModel: ObservableObject {
                 backgroundColor: self.backgroundColor,
                 gradientColors: self.gradientColors,
                 backgroundImage: self.backgroundImage,
-                cropRect: self.appliedCropRect
+                cropRect: self.appliedCropRect,
+                stickers: self.stickers
             )
             
             DispatchQueue.main.async {
