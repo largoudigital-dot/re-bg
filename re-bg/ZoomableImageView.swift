@@ -115,20 +115,6 @@ struct ZoomableImageView: View {
                             if isCropping, let commit = onCropCommit {
                                 CropOverlayView(onCommit: commit)
                             }
-                            
-                            // Sticker Layer
-                            ForEach($stickers) { $sticker in
-                                StickerView(
-                                    sticker: $sticker,
-                                    containerSize: geometry.size,
-                                    isSelected: selectedStickerId == sticker.id,
-                                    onSelect: {
-                                        withAnimation(.easeInOut(duration: 0.2)) {
-                                            selectedStickerId = sticker.id
-                                        }
-                                    }
-                                )
-                            }
                         }
                         .overlay(
                             Rectangle()
@@ -150,6 +136,24 @@ struct ZoomableImageView: View {
                     }
                 }
                 // --- END CANVAS CONTAINER ---
+                
+                // --- STICKER OVERLAY LAYER ---
+                ZStack {
+                    ForEach($stickers) { $sticker in
+                        StickerView(
+                            sticker: $sticker,
+                            containerSize: geometry.size,
+                            isSelected: selectedStickerId == sticker.id,
+                            onSelect: {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    selectedStickerId = sticker.id
+                                }
+                            },
+                            parentTransform: getCurrentPhotoTransform(geometry: geometry)
+                        )
+                    }
+                }
+                .allowsHitTesting(!isCropping)
                 
                 // 3. Guidelines (Top)
                 if showVGuide || showHGuide {
@@ -315,6 +319,29 @@ struct ZoomableImageView: View {
         }
         hapticFeedback()
     }
+    
+    // Helper to calculate the current transformation state of the photo content
+    private func getCurrentPhotoTransform(geometry: GeometryProxy) -> PhotoTransform {
+        // Combined transformation: Rotation -> Canvas Scale/Offset -> FG Scale/Offset
+        // For positions, we need to know how a normalized (0-1) point in the PHOTO 
+        // maps to the SCREEN.
+        
+        return PhotoTransform(
+            canvasOffset: canvasOffset,
+            canvasScale: canvasScale,
+            fgOffset: fgOffset,
+            fgScale: fgScale,
+            rotation: rotation
+        )
+    }
+}
+
+struct PhotoTransform: Equatable {
+    let canvasOffset: CGSize
+    let canvasScale: CGFloat
+    let fgOffset: CGSize
+    let fgScale: CGFloat
+    let rotation: CGFloat
 }
 
 struct StickerView: View {
@@ -322,20 +349,52 @@ struct StickerView: View {
     let containerSize: CGSize
     let isSelected: Bool
     let onSelect: () -> Void
+    let parentTransform: PhotoTransform
     
     @State private var dragOffset: CGSize = .zero
     @State private var currentScale: CGFloat = 1.0
     @State private var currentRotation: Angle = .zero
     
+    // Calculate the actual screen position based on photo transformation
+    private var screenPosition: CGPoint {
+        // 1. Center of the container
+        let centerX = containerSize.width / 2
+        let centerY = containerSize.height / 2
+        
+        // 2. Relative position of the sticker on the photo (0...1) converted to -0.5...0.5
+        let rx = sticker.position.x - 0.5
+        let ry = sticker.position.y - 0.5
+        
+        // 3. Apply scales (photo's own scale and canvas scale)
+        let totalScale = parentTransform.canvasScale * parentTransform.fgScale
+        let sx = rx * containerSize.width * totalScale
+        let sy = ry * containerSize.height * totalScale
+        
+        // 4. Apply rotation (if the parent content is rotated)
+        let angle = parentTransform.rotation * .pi / 180
+        let cosA = cos(angle)
+        let sinA = sin(angle)
+        
+        let rotatedX = sx * cosA - sy * sinA
+        let rotatedY = sx * sinA + sy * cosA
+        
+        // 5. Apply offsets (fgOffset and canvasOffset)
+        // We need to account for the fact that offsets are scaled by the canvasScale? 
+        // Actually, ZoomableImageView applies offset(canvasOffset).scaleEffect(canvasScale).
+        // So canvasOffset is in unscaled points.
+        
+        let tx = centerX + rotatedX + parentTransform.fgOffset.width * parentTransform.canvasScale + parentTransform.canvasOffset.width + dragOffset.width
+        let ty = centerY + rotatedY + parentTransform.fgOffset.height * parentTransform.canvasScale + parentTransform.canvasOffset.height + dragOffset.height
+        
+        return CGPoint(x: tx, y: ty)
+    }
+    
     var body: some View {
         ZStack {
-            // Invisible larger hit area for easier selection
-            Color.clear
-                .frame(width: 100, height: 100)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    onSelect()
-                }
+            // Selection Handles (only visible when selected)
+            if isSelected {
+                selectionHandles
+            }
             
             Text(sticker.content)
                 .font(.system(size: 60))
@@ -348,11 +407,7 @@ struct StickerView: View {
         }
         .scaleEffect(sticker.scale * currentScale)
         .rotationEffect(sticker.rotation + currentRotation)
-        .position(
-            x: sticker.position.x * containerSize.width + dragOffset.width,
-            y: sticker.position.y * containerSize.height + dragOffset.height
-        )
-        // High priority gestures for stickers so they consume interactions when active
+        .position(screenPosition)
         .highPriorityGesture(
             DragGesture()
                 .onChanged { value in
@@ -363,12 +418,21 @@ struct StickerView: View {
                     dragOffset = value.translation
                 }
                 .onEnded { value in
-                    sticker.position.x += value.translation.width / containerSize.width
-                    sticker.position.y += value.translation.height / containerSize.height
+                    // Convert screen-space translation back to normalized photo coordinates
+                    let totalScale = parentTransform.canvasScale * parentTransform.fgScale
+                    let angle = -parentTransform.rotation * .pi / 180
+                    
+                    let dx = value.translation.width / (containerSize.width * totalScale)
+                    let dy = value.translation.height / (containerSize.height * totalScale)
+                    
+                    let rotatedDX = dx * cos(angle) - dy * sin(angle)
+                    let rotatedDY = dx * sin(angle) + dy * cos(angle)
+                    
+                    sticker.position.x += rotatedDX
+                    sticker.position.y += rotatedDY
                     dragOffset = .zero
                 }
         )
-        // Magnification and Rotation only active when selected to avoid accidental triggers
         .simultaneousGesture(
             isSelected ? MagnificationGesture()
                 .onChanged { value in
@@ -389,5 +453,17 @@ struct StickerView: View {
                     currentRotation = .zero
                 } : nil
         )
+    }
+    
+    private var selectionHandles: some View {
+        // This would normally be 4 small circles at corners, 
+        // but for now, we rely on the pinch/rotate gestures.
+        // Let's add simple visual cues for professional look.
+        ZStack {
+            Circle().fill(.white).frame(width: 10, height: 10).offset(x: -40, y: -40)
+            Circle().fill(.white).frame(width: 10, height: 10).offset(x: 40, y: -40)
+            Circle().fill(.white).frame(width: 10, height: 10).offset(x: -40, y: 40)
+            Circle().fill(.white).frame(width: 10, height: 10).offset(x: 40, y: 40)
+        }
     }
 }
