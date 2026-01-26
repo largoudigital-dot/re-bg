@@ -77,7 +77,11 @@ struct EditorView: View {
             } message: {
                 Text(saveMessage)
             }
-                // Removed fullScreenCover
+            .sheet(isPresented: $showingUnsplashPicker) {
+                UnsplashPickerView { newImage in
+                    viewModel.setBackgroundImage(newImage)
+                }
+            }
     }
     
     private var bottomBar: some View {
