@@ -20,6 +20,22 @@ struct EditorState: Equatable {
     var backgroundColor: Color?
     var gradientColors: [Color]?
     var backgroundImage: UIImage?
+    var cropRect: CGRect? // Normalized applied crop
+    
+    static func == (lhs: EditorState, rhs: EditorState) -> Bool {
+        return lhs.selectedFilter == rhs.selectedFilter &&
+            lhs.brightness == rhs.brightness &&
+            lhs.contrast == rhs.contrast &&
+            lhs.saturation == rhs.saturation &&
+            lhs.blur == rhs.blur &&
+            lhs.rotation == rhs.rotation &&
+            lhs.selectedAspectRatio == rhs.selectedAspectRatio &&
+            lhs.customSize == rhs.customSize &&
+            lhs.backgroundColor == rhs.backgroundColor &&
+            lhs.gradientColors == rhs.gradientColors &&
+            lhs.backgroundImage === rhs.backgroundImage &&
+            lhs.cropRect == rhs.cropRect
+    }
 }
 
 enum ImageFormat {
@@ -46,6 +62,10 @@ class EditorViewModel: ObservableObject {
     @Published var backgroundColor: Color? = nil
     @Published var gradientColors: [Color]? = nil
     
+    // Crop State
+    @Published var isCropping = false
+    @Published var appliedCropRect: CGRect? = nil
+    
     // Undo/Redo Stacks
     private var undoStack: [EditorState] = []
     private var redoStack: [EditorState] = []
@@ -56,7 +76,7 @@ class EditorViewModel: ObservableObject {
     
     // Status indicators
     var isCanvasActive: Bool {
-        selectedAspectRatio != .original || rotation != 0 || customSize != nil
+        selectedAspectRatio != .original || rotation != 0 || customSize != nil || isCropping
     }
     
     var isFilterActive: Bool {
@@ -102,7 +122,8 @@ class EditorViewModel: ObservableObject {
             customSize: customSize,
             backgroundColor: backgroundColor,
             gradientColors: gradientColors,
-            backgroundImage: backgroundImage
+            backgroundImage: backgroundImage,
+            cropRect: appliedCropRect
         )
     }
     
@@ -160,6 +181,7 @@ class EditorViewModel: ObservableObject {
         backgroundColor = state.backgroundColor
         gradientColors = state.gradientColors
         backgroundImage = state.backgroundImage
+        appliedCropRect = state.cropRect
     }
     
     func setBackgroundImage(_ image: UIImage) {
@@ -167,6 +189,36 @@ class EditorViewModel: ObservableObject {
         self.backgroundImage = image
         self.backgroundColor = nil
         self.gradientColors = nil
+        updateProcessedImage()
+    }
+    
+    // MARK: - Crop Management
+    
+    func startCropping() {
+        // Just enter mode, no state save yet
+        isCropping = true
+    }
+    
+    func cancelCropping() {
+        isCropping = false
+    }
+    
+    func applyCrop(_ rect: CGRect) {
+        // "rect" is the relative crop rect (0-1) of the CURRENTLY DISPLAYED image.
+        // We need to convert this to cumulative crop relative to the original image.
+        
+        let currentCrop = appliedCropRect ?? CGRect(x: 0, y: 0, width: 1, height: 1)
+        
+        let newX = currentCrop.minX + (rect.minX * currentCrop.width)
+        let newY = currentCrop.minY + (rect.minY * currentCrop.height)
+        let newW = rect.width * currentCrop.width
+        let newH = rect.height * currentCrop.height
+        
+        // Update cumulative crop
+        let newCumulativeCrop = CGRect(x: newX, y: newY, width: newW, height: newH)
+        
+        saveState()
+        appliedCropRect = newCumulativeCrop
         updateProcessedImage()
     }
     
@@ -264,7 +316,8 @@ class EditorViewModel: ObservableObject {
                 customSize: self.customSize,
                 backgroundColor: self.backgroundColor,
                 gradientColors: self.gradientColors,
-                backgroundImage: self.backgroundImage
+                backgroundImage: self.backgroundImage,
+                cropRect: self.appliedCropRect
             )
             
             DispatchQueue.main.async {

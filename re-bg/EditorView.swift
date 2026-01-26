@@ -77,11 +77,7 @@ struct EditorView: View {
             } message: {
                 Text(saveMessage)
             }
-            .sheet(isPresented: $showingUnsplashPicker) {
-                UnsplashPickerView { newImage in
-                    viewModel.setBackgroundImage(newImage)
-                }
-            }
+                // Removed fullScreenCover
     }
     
     private var bottomBar: some View {
@@ -189,7 +185,9 @@ struct EditorView: View {
             let availableWidth = geometry.size.width - 2 // Considering horizontal padding
             let availableHeight = geometry.size.height
             
-            let imageSize = viewModel.originalImage?.size ?? CGSize(width: 1, height: 1)
+            // Use processedImage size if available to match the visible result (crucial for crop handling)
+            let displayImage = (isShowingOriginal ? viewModel.originalImage : viewModel.processedImage) ?? viewModel.originalImage
+            let imageSize = displayImage?.size ?? CGSize(width: 1, height: 1)
             let rawAspectRatio = imageSize.width / imageSize.height
             
             // If rotated 90 or 270, swap aspect ratio
@@ -221,12 +219,12 @@ struct EditorView: View {
                 ZStack {
                     if let original = viewModel.originalImage {
                         ZoomableImageView(
-                            foreground: isShowingOriginal ? original : viewModel.foregroundImage,
-                            background: isShowingOriginal ? nil : viewModel.backgroundImage,
+                            foreground: displayImage, // Show the full processed result (or original)
+                            background: nil, // Background is already composited in processedImage
                             original: original,
-                            backgroundColor: isShowingOriginal ? nil : viewModel.backgroundColor,
-                            gradientColors: isShowingOriginal ? nil : viewModel.gradientColors,
-                            activeLayer: (selectedTab == .unsplash || selectedTab == .colors) ? .background : .foreground,
+                            backgroundColor: nil, // Encoded in processedImage
+                            gradientColors: nil, // Encoded in processedImage
+                            activeLayer: .foreground, // Treat as single layer
                             rotation: viewModel.rotation
                         )
                         .id("photo-\(viewModel.rotation)-\(viewModel.originalImage?.hashValue ?? 0)")
@@ -251,6 +249,14 @@ struct EditorView: View {
                 .frame(width: fitSize.width, height: fitSize.height)
                 .background(Color(white: 0.95))
                 .clipped()
+                
+                // Crop Overlay Integration
+                if viewModel.isCropping {
+                    CropOverlayView { rect in
+                        viewModel.applyCrop(rect)
+                    }
+                    .frame(width: fitSize.width, height: fitSize.height)
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay(alignment: .bottom) {

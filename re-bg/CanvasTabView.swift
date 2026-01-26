@@ -88,7 +88,12 @@ struct CanvasTabView: View {
                                 if ratio != .custom {
                                     viewModel.customSize = nil
                                 }
-                                viewModel.updateAdjustment()
+                                
+                                if ratio == .free {
+                                    viewModel.startCropping()
+                                } else {
+                                    viewModel.updateAdjustment()
+                                }
                             }
                         }) {
                             VStack(spacing: 6) {

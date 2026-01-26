@@ -265,8 +265,26 @@ class ImageProcessor {
                               customSize: CGSize?,
                               backgroundColor: Color?,
                               gradientColors: [Color]?,
-                              backgroundImage: UIImage?) -> UIImage? {
+                              backgroundImage: UIImage?,
+                              cropRect: CGRect? = nil) -> UIImage? {
         var processedImage = original
+        
+        // 0. Apply normalized crop rect if provided (Free Crop)
+        if let rect = cropRect {
+             let width = CGFloat(processedImage.size.width)
+             let height = CGFloat(processedImage.size.height)
+             
+             let x = rect.minX * width
+             let y = rect.minY * height
+             let w = rect.width * width
+             let h = rect.height * height
+             
+             let cropZone = CGRect(x: x, y: y, width: w, height: h)
+             
+             if let cgImage = processedImage.cgImage?.cropping(to: cropZone) {
+                 processedImage = UIImage(cgImage: cgImage, scale: processedImage.scale, orientation: processedImage.imageOrientation)
+             }
+        }
         
         // 1. Crop foreground first if needed
         if let ratio = aspectRatio {
