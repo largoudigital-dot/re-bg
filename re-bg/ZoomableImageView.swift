@@ -216,6 +216,9 @@ struct ZoomableImageView: View {
             
         let zoom = MagnificationGesture()
             .onChanged { value in
+                // If a sticker is selected, we do NOT allow zooming the background
+                if selectedStickerId != nil { return }
+                
                 if interactingLayer == nil {
                     interactingLayer = targetLayer
                     hapticFeedback()
@@ -223,6 +226,8 @@ struct ZoomableImageView: View {
                 updateScale(for: targetLayer, value: value)
             }
             .onEnded { _ in
+                if selectedStickerId != nil { return }
+                
                 finalizeScale(for: targetLayer)
                 interactingLayer = nil
             }
