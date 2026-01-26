@@ -13,12 +13,11 @@ struct ZoomableImageView: View {
     let backgroundColor: Color?
     let gradientColors: [Color]?
     let activeLayer: SelectedLayer
-    let rotation: CGFloat
-    let isCropping: Bool
     let onCropCommit: ((CGRect) -> Void)?
     @Binding var stickers: [Sticker]
+    @Binding var selectedStickerId: UUID?
     
-    init(foreground: UIImage?, background: UIImage?, original: UIImage?, backgroundColor: Color?, gradientColors: [Color]?, activeLayer: SelectedLayer, rotation: CGFloat, isCropping: Bool = false, onCropCommit: ((CGRect) -> Void)? = nil, stickers: Binding<[Sticker]>) {
+    init(foreground: UIImage?, background: UIImage?, original: UIImage?, backgroundColor: Color?, gradientColors: [Color]?, activeLayer: SelectedLayer, rotation: CGFloat, isCropping: Bool = false, onCropCommit: ((CGRect) -> Void)? = nil, stickers: Binding<[Sticker]>, selectedStickerId: Binding<UUID?>) {
         self.foreground = foreground
         self.background = background
         self.original = original
@@ -29,6 +28,7 @@ struct ZoomableImageView: View {
         self.isCropping = isCropping
         self.onCropCommit = onCropCommit
         self._stickers = stickers
+        self._selectedStickerId = selectedStickerId
     }
     
     // Foreground State
@@ -58,8 +58,13 @@ struct ZoomableImageView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // Background Tap Area for Canvas manipulation
+                // Background Tap Area for Canvas manipulation and Deselection
                 Color.black.opacity(0.001)
+                    .onTapGesture {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            selectedStickerId = nil
+                        }
+                    }
                     .gesture(layerGesture(for: .canvas))
                 
                 // --- CANVAS CONTAINER ---
@@ -111,7 +116,16 @@ struct ZoomableImageView: View {
                             
                             // Sticker Layer
                             ForEach($stickers) { $sticker in
-                                StickerView(sticker: $sticker, containerSize: geometry.size)
+                                StickerView(
+                                    sticker: $sticker,
+                                    containerSize: geometry.size,
+                                    isSelected: selectedStickerId == sticker.id,
+                                    onSelect: {
+                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                            selectedStickerId = sticker.id
+                                        }
+                                    }
+                                )
                             }
                         }
                         .overlay(
@@ -290,6 +304,8 @@ struct ZoomableImageView: View {
 struct StickerView: View {
     @Binding var sticker: Sticker
     let containerSize: CGSize
+    let isSelected: Bool
+    let onSelect: () -> Void
     
     @State private var dragOffset: CGSize = .zero
     @State private var currentScale: CGFloat = 1.0
@@ -298,12 +314,20 @@ struct StickerView: View {
     var body: some View {
         Text(sticker.content)
             .font(.system(size: 60))
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(isSelected ? Color.white : Color.clear, style: StrokeStyle(lineWidth: 2, dash: [5]))
+            )
             .scaleEffect(sticker.scale * currentScale)
             .rotationEffect(sticker.rotation + currentRotation)
             .position(
                 x: sticker.position.x * containerSize.width + dragOffset.width,
                 y: sticker.position.y * containerSize.height + dragOffset.height
             )
+            .onTapGesture {
+                onSelect()
+            }
             .highPriorityGesture(
                 DragGesture()
                     .onChanged { value in

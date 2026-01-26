@@ -241,7 +241,8 @@ struct EditorView: View {
                             onCropCommit: { rect in
                                 viewModel.applyCrop(rect)
                             },
-                            stickers: $viewModel.stickers
+                            stickers: $viewModel.stickers,
+                            selectedStickerId: $viewModel.selectedStickerId
                         )
                         .id("photo-\(viewModel.rotation)-\(viewModel.originalImage?.hashValue ?? 0)")
                     }

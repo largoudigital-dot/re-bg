@@ -70,6 +70,7 @@ class EditorViewModel: ObservableObject {
     
     // Sticker State
     @Published var stickers: [Sticker] = []
+    @Published var selectedStickerId: UUID? = nil
     @Published var showingEmojiPicker = false
     
     // Undo/Redo Stacks
@@ -253,8 +254,19 @@ class EditorViewModel: ObservableObject {
     
     func removeSticker(id: UUID) {
         saveState()
+        if selectedStickerId == id {
+            selectedStickerId = nil
+        }
         stickers.removeAll(where: { $0.id == id })
         updateProcessedImage()
+    }
+    
+    func selectSticker(id: UUID) {
+        selectedStickerId = id
+    }
+    
+    func deselectSticker() {
+        selectedStickerId = nil
     }
     
     func removeBackgroundFromCurrent() {
