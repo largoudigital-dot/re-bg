@@ -242,7 +242,10 @@ struct EditorView: View {
                                 viewModel.applyCrop(rect)
                             },
                             stickers: $viewModel.stickers,
-                            selectedStickerId: $viewModel.selectedStickerId
+                            selectedStickerId: $viewModel.selectedStickerId,
+                            onDeleteSticker: { id in
+                                viewModel.removeSticker(id: id)
+                            }
                         )
                         .id("photo-\(viewModel.rotation)-\(viewModel.originalImage?.hashValue ?? 0)")
                     }

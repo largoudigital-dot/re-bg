@@ -18,8 +18,9 @@ struct ZoomableImageView: View {
     let onCropCommit: ((CGRect) -> Void)?
     @Binding var stickers: [Sticker]
     @Binding var selectedStickerId: UUID?
+    let onDeleteSticker: (UUID) -> Void
     
-    init(foreground: UIImage?, background: UIImage?, original: UIImage?, backgroundColor: Color?, gradientColors: [Color]?, activeLayer: SelectedLayer, rotation: CGFloat, isCropping: Bool = false, onCropCommit: ((CGRect) -> Void)? = nil, stickers: Binding<[Sticker]>, selectedStickerId: Binding<UUID?>) {
+    init(foreground: UIImage?, background: UIImage?, original: UIImage?, backgroundColor: Color?, gradientColors: [Color]?, activeLayer: SelectedLayer, rotation: CGFloat, isCropping: Bool = false, onCropCommit: ((CGRect) -> Void)? = nil, stickers: Binding<[Sticker]>, selectedStickerId: Binding<UUID?>, onDeleteSticker: @escaping (UUID) -> Void) {
         self.foreground = foreground
         self.background = background
         self.original = original
@@ -31,6 +32,7 @@ struct ZoomableImageView: View {
         self.onCropCommit = onCropCommit
         self._stickers = stickers
         self._selectedStickerId = selectedStickerId
+        self.onDeleteSticker = onDeleteSticker
     }
     
     // Foreground State
@@ -150,6 +152,9 @@ struct ZoomableImageView: View {
                                 withAnimation(.easeInOut(duration: 0.2)) {
                                     selectedStickerId = sticker.id
                                 }
+                            },
+                            onDelete: {
+                                onDeleteSticker(sticker.id)
                             },
                             parentTransform: getCurrentPhotoTransform(geometry: geometry)
                         )
@@ -364,6 +369,7 @@ struct StickerView: View {
     let containerSize: CGSize
     let isSelected: Bool
     let onSelect: () -> Void
+    let onDelete: () -> Void
     let parentTransform: PhotoTransform
     
     @State private var dragOffset: CGSize = .zero
@@ -494,10 +500,27 @@ struct StickerView: View {
     
     private var selectionHandles: some View {
         ZStack {
-            // Visualize 4 corners
-            Circle().fill(.white).frame(width: 8, height: 8).offset(x: -45, y: -45)
+            // Visualize 3 corners
             Circle().fill(.white).frame(width: 8, height: 8).offset(x: 45, y: -45)
             Circle().fill(.white).frame(width: 8, height: 8).offset(x: -45, y: 45)
+            
+            // Top Left Handle: Delete Button
+            Button(action: {
+                hapticFeedback()
+                onDelete()
+            }) {
+                ZStack {
+                    Circle()
+                        .fill(Color.red)
+                        .frame(width: 28, height: 28)
+                        .shadow(radius: 2)
+                    
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.white)
+                }
+            }
+            .offset(x: -45, y: -45)
             
             // Bottom Right Handle: Interactive Resize & Rotate
             ZStack {
