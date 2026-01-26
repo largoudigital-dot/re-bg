@@ -304,7 +304,7 @@ struct StickerView: View {
                 x: sticker.position.x * containerSize.width + dragOffset.width,
                 y: sticker.position.y * containerSize.height + dragOffset.height
             )
-            .simultaneousGesture(
+            .highPriorityGesture(
                 DragGesture()
                     .onChanged { value in
                         dragOffset = value.translation
