@@ -375,6 +375,7 @@ struct EditorView: View {
                     isActive: isTabActive(tab),
                     action: {
                         hapticFeedback()
+                        viewModel.cancelCropping() // Reset crop mode on tab change
                         withAnimation(.easeInOut(duration: 0.2)) {
                             if tab == .unsplash {
                                 showingUnsplashPicker = true

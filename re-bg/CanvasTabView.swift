@@ -92,6 +92,7 @@ struct CanvasTabView: View {
                                 if ratio == .free {
                                     viewModel.startCropping()
                                 } else {
+                                    viewModel.cancelCropping()
                                     viewModel.updateAdjustment()
                                 }
                             }
