@@ -57,19 +57,21 @@ struct ZoomableImageView: View {
     
     private let snapThreshold: CGFloat = 10
     
-    var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                // Background Tap Area for Canvas manipulation and Deselection
-                Color.black.opacity(0.001)
-                    .onTapGesture {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            selectedStickerId = nil
+                // --- BACKGROUND DESELECTION LAYER ---
+                // This layer captures taps outside the stickers to deselect them
+                // without letting the tap reach the image layers.
+                if selectedStickerId != nil {
+                    Color.black.opacity(0.001)
+                        .onTapGesture {
+                            print("DEBUG: Deselection area touched")
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                selectedStickerId = nil
+                            }
                         }
-                    }
-                    .gesture(layerGesture(for: .canvas))
+                        .zIndex(500)
+                }
                 
-                // --- CANVAS CONTAINER ---
+                // --- PHOTO CONTENT CONTAINER ---
                 ZStack {
                     // 1. Background Layer (Bottom)
                     Group {
@@ -128,13 +130,10 @@ struct ZoomableImageView: View {
                 .rotationEffect(.degrees(rotation))
                 .scaleEffect(canvasScale)
                 .offset(canvasOffset)
-                .onTapGesture {
-                    if selectedStickerId != nil {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            selectedStickerId = nil
-                        }
-                    }
-                }
+                // Disable hit-testing for the photo when a sticker is selected
+                // This prevents photo gestures from firing.
+                .allowsHitTesting(selectedStickerId == nil)
+                .zIndex(1)
                 // --- END CANVAS CONTAINER ---
                 
                 // --- STICKER OVERLAY LAYER ---
@@ -153,6 +152,7 @@ struct ZoomableImageView: View {
                         )
                     }
                 }
+                .zIndex(1000) // Ensure stickers are always on top (Z-index high)
                 .allowsHitTesting(!isCropping)
                 
                 // 3. Guidelines (Top)
@@ -193,6 +193,7 @@ struct ZoomableImageView: View {
         let drag = DragGesture(minimumDistance: 0)
             .onChanged { value in
                 if interactingLayer == nil {
+                    print("DEBUG: Photo Drag Start on \(targetLayer)")
                     interactingLayer = targetLayer
                     hapticFeedback()
                     
@@ -206,6 +207,7 @@ struct ZoomableImageView: View {
                 updatePosition(for: targetLayer, translation: value.translation)
             }
             .onEnded { _ in
+                print("DEBUG: Photo Drag End on \(targetLayer)")
                 finalizeOffset(for: targetLayer)
                 interactingLayer = nil
                 withAnimation(.easeOut(duration: 0.2)) {
@@ -217,9 +219,13 @@ struct ZoomableImageView: View {
         let zoom = MagnificationGesture()
             .onChanged { value in
                 // If a sticker is selected, we do NOT allow zooming the background
-                if selectedStickerId != nil { return }
+                if selectedStickerId != nil { 
+                    print("DEBUG: Photo Zoom BLOCKED (sticker selected)")
+                    return 
+                }
                 
                 if interactingLayer == nil {
+                    print("DEBUG: Photo Zoom Start on \(targetLayer)")
                     interactingLayer = targetLayer
                     hapticFeedback()
                 }
@@ -228,6 +234,7 @@ struct ZoomableImageView: View {
             .onEnded { _ in
                 if selectedStickerId != nil { return }
                 
+                print("DEBUG: Photo Zoom End on \(targetLayer)")
                 finalizeScale(for: targetLayer)
                 interactingLayer = nil
             }
@@ -417,12 +424,14 @@ struct StickerView: View {
             DragGesture()
                 .onChanged { value in
                     if dragOffset == .zero {
+                        print("DEBUG: Sticker Drag Start (\(sticker.content))")
                         onSelect()
                         hapticFeedback()
                     }
                     dragOffset = value.translation
                 }
                 .onEnded { value in
+                    print("DEBUG: Sticker Drag End (\(sticker.content))")
                     // Convert screen-space translation back to normalized photo coordinates
                     let totalScale = parentTransform.canvasScale * parentTransform.fgScale
                     let angle = -parentTransform.rotation * .pi / 180
@@ -438,22 +447,26 @@ struct StickerView: View {
                     dragOffset = .zero
                 }
         )
-        .simultaneousGesture(
+        .highPriorityGesture(
             isSelected ? MagnificationGesture()
                 .onChanged { value in
+                    if currentScale == 1.0 { print("DEBUG: Sticker Zoom Start (\(sticker.content))") }
                     currentScale = value
                 }
                 .onEnded { value in
+                    print("DEBUG: Sticker Zoom End (\(sticker.content))")
                     sticker.scale *= value
                     currentScale = 1.0
                 } : nil
         )
-        .simultaneousGesture(
+        .highPriorityGesture(
             isSelected ? RotationGesture()
                 .onChanged { value in
+                    if currentRotation == .zero { print("DEBUG: Sticker Rotation Start (\(sticker.content))") }
                     currentRotation = value
                 }
                 .onEnded { value in
+                    print("DEBUG: Sticker Rotation End (\(sticker.content))")
                     sticker.rotation += value
                     currentRotation = .zero
                 } : nil
