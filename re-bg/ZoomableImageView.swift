@@ -6,6 +6,12 @@ enum SelectedLayer {
     case canvas
 }
 
+struct ZoomableImageView: View {
+    let foreground: UIImage?
+    let background: UIImage?
+    let original: UIImage?
+    let backgroundColor: Color?
+    let gradientColors: [Color]?
     let activeLayer: SelectedLayer
     let rotation: CGFloat
     let isCropping: Bool
