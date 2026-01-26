@@ -225,7 +225,11 @@ struct EditorView: View {
                             backgroundColor: nil, // Encoded in processedImage
                             gradientColors: nil, // Encoded in processedImage
                             activeLayer: .foreground, // Treat as single layer
-                            rotation: viewModel.rotation
+                            rotation: viewModel.rotation,
+                            isCropping: viewModel.isCropping,
+                            onCropCommit: { rect in
+                                viewModel.applyCrop(rect)
+                            }
                         )
                         .id("photo-\(viewModel.rotation)-\(viewModel.originalImage?.hashValue ?? 0)")
                     }
@@ -249,14 +253,6 @@ struct EditorView: View {
                 .frame(width: fitSize.width, height: fitSize.height)
                 .background(Color(white: 0.95))
                 .clipped()
-                
-                // Crop Overlay Integration
-                if viewModel.isCropping {
-                    CropOverlayView { rect in
-                        viewModel.applyCrop(rect)
-                    }
-                    .frame(width: fitSize.width, height: fitSize.height)
-                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay(alignment: .bottom) {

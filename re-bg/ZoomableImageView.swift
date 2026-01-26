@@ -6,14 +6,22 @@ enum SelectedLayer {
     case canvas
 }
 
-struct ZoomableImageView: View {
-    let foreground: UIImage?
-    let background: UIImage?
-    let original: UIImage?
-    let backgroundColor: Color?
-    let gradientColors: [Color]?
     let activeLayer: SelectedLayer
     let rotation: CGFloat
+    let isCropping: Bool
+    let onCropCommit: ((CGRect) -> Void)?
+    
+    init(foreground: UIImage?, background: UIImage?, original: UIImage?, backgroundColor: Color?, gradientColors: [Color]?, activeLayer: SelectedLayer, rotation: CGFloat, isCropping: Bool = false, onCropCommit: ((CGRect) -> Void)? = nil) {
+        self.foreground = foreground
+        self.background = background
+        self.original = original
+        self.backgroundColor = backgroundColor
+        self.gradientColors = gradientColors
+        self.activeLayer = activeLayer
+        self.rotation = rotation
+        self.isCropping = isCropping
+        self.onCropCommit = onCropCommit
+    }
     
     // Foreground State
     @State private var fgScale: CGFloat = 1.0
@@ -84,16 +92,22 @@ struct ZoomableImageView: View {
                     
                     // 2. Foreground Layer (Middle)
                     if let displayImage = (foreground ?? original) {
-                        Image(uiImage: displayImage)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .overlay(
-                                Rectangle()
-                                    .stroke(Color.blue, lineWidth: (interactingLayer == .foreground || (interactingLayer == .canvas && activeLayer == .canvas)) ? 3 : 0)
-                            )
-                            .scaleEffect(fgScale)
-                            .offset(fgOffset)
-                            .gesture(layerGesture(for: .foreground))
+                        ZStack {
+                            Image(uiImage: displayImage)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                            
+                            if isCropping, let commit = onCropCommit {
+                                CropOverlayView(onCommit: commit)
+                            }
+                        }
+                        .overlay(
+                            Rectangle()
+                                .stroke(Color.blue, lineWidth: (interactingLayer == .foreground || (interactingLayer == .canvas && activeLayer == .canvas)) ? 3 : 0)
+                        )
+                        .scaleEffect(fgScale)
+                        .offset(fgOffset)
+                        .gesture(layerGesture(for: .foreground))
                     }
                 }
                 .rotationEffect(.degrees(rotation))
