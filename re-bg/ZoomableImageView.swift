@@ -513,12 +513,6 @@ struct StickerView: View {
             Circle().fill(.white).frame(width: 8, height: 8).offset(x: 45, y: -45)
             Circle().fill(.white).frame(width: 8, height: 8).offset(x: -45, y: 45)
             
-    private var selectionHandles: some View {
-        ZStack {
-            // Visualize 3 corners
-            Circle().fill(.white).frame(width: 8, height: 8).offset(x: 45, y: -45)
-            Circle().fill(.white).frame(width: 8, height: 8).offset(x: -45, y: 45)
-            
             // Top Left Handle: Delete Button
             ZStack {
                 Circle()
