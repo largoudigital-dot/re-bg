@@ -370,6 +370,12 @@ struct StickerView: View {
     @State private var currentScale: CGFloat = 1.0
     @State private var currentRotation: Angle = .zero
     
+    // For single-finger resize handle
+    @State private var initialHandleDistance: CGFloat = 1.0
+    @State private var initialHandleAngle: Angle = .zero
+    @State private var initialStickerScale: CGFloat = 1.0
+    @State private var initialStickerRotation: Angle = .zero
+    
     // Calculate the actual screen position based on photo transformation
     private var screenPosition: CGPoint {
         // 1. Center of the container
@@ -487,14 +493,63 @@ struct StickerView: View {
     }
     
     private var selectionHandles: some View {
-        // This would normally be 4 small circles at corners, 
-        // but for now, we rely on the pinch/rotate gestures.
-        // Let's add simple visual cues for professional look.
         ZStack {
-            Circle().fill(.white).frame(width: 10, height: 10).offset(x: -40, y: -40)
-            Circle().fill(.white).frame(width: 10, height: 10).offset(x: 40, y: -40)
-            Circle().fill(.white).frame(width: 10, height: 10).offset(x: -40, y: 40)
-            Circle().fill(.white).frame(width: 10, height: 10).offset(x: 40, y: 40)
+            // Visualize 4 corners
+            Circle().fill(.white).frame(width: 8, height: 8).offset(x: -45, y: -45)
+            Circle().fill(.white).frame(width: 8, height: 8).offset(x: 45, y: -45)
+            Circle().fill(.white).frame(width: 8, height: 8).offset(x: -45, y: 45)
+            
+            // Bottom Right Handle: Interactive Resize & Rotate
+            ZStack {
+                Circle()
+                    .fill(Color.blue)
+                    .frame(width: 28, height: 28)
+                    .shadow(radius: 2)
+                
+                Image(systemName: "arrow.up.left.and.arrow.down.right.circle.fill")
+                    .resizable()
+                    .frame(width: 28, height: 28)
+                    .foregroundColor(.white)
+            }
+            .offset(x: 45, y: 45)
+            .highPriorityGesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        let center = screenPosition
+                        let touch = value.location
+                        
+                        // Calculate vector from center to touch point
+                        let dx = touch.x - center.x
+                        let dy = touch.y - center.y
+                        
+                        let distance = sqrt(dx*dx + dy*dy)
+                        let angle = Angle(radians: Double(atan2(dy, dx)))
+                        
+                        if initialHandleDistance == 1.0 { // Start of gesture
+                            initialHandleDistance = distance
+                            initialHandleAngle = angle
+                            initialStickerScale = sticker.scale
+                            initialStickerRotation = sticker.rotation
+                            hapticFeedback()
+                        }
+                        
+                        // 1. Update Scale (relative to initial distance)
+                        // Guard against division by zero
+                        if initialHandleDistance > 0 {
+                            let newScale = initialStickerScale * (distance / initialHandleDistance)
+                            sticker.scale = max(0.1, min(10.0, newScale))
+                        }
+                        
+                        // 2. Update Rotation (relative to initial angle)
+                        let deltaAngle = angle - initialHandleAngle
+                        sticker.rotation = initialStickerRotation + deltaAngle
+                    }
+                    .onEnded { _ in
+                        initialHandleDistance = 1.0
+                        initialHandleAngle = .zero
+                        hapticFeedback()
+                    }
+            )
         }
     }
 }
