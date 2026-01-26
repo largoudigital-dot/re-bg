@@ -304,7 +304,7 @@ struct StickerView: View {
                 x: sticker.position.x * containerSize.width + dragOffset.width,
                 y: sticker.position.y * containerSize.height + dragOffset.height
             )
-            .gesture(
+            .simultaneousGesture(
                 DragGesture()
                     .onChanged { value in
                         dragOffset = value.translation
@@ -315,7 +315,7 @@ struct StickerView: View {
                         dragOffset = .zero
                     }
             )
-            .gesture(
+            .simultaneousGesture(
                 MagnificationGesture()
                     .onChanged { value in
                         currentScale = value
