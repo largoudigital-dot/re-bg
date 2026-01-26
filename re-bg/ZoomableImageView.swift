@@ -160,6 +160,7 @@ struct ZoomableImageView: View {
                         )
                     }
                 }
+                .coordinateSpace(name: "StickerContainer")
                 .zIndex(1000) // Ensure stickers are always on top (Z-index high)
                 .allowsHitTesting(!isCropping)
                 
@@ -418,84 +419,92 @@ struct StickerView: View {
     
     var body: some View {
         ZStack {
-            // Invisible larger hit area for easier selection
-            Color.black.opacity(0.001)
-                .frame(width: 80, height: 80)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    print("DEBUG: Sticker tapped (\(sticker.content))")
-                    onSelect()
-                    hapticFeedback()
-                }
+            // Content Group (Hit Area + Text) - This listens for MOVE gestures
+            ZStack {
+                // Invisible larger hit area for easier selection
+                Color.black.opacity(0.001)
+                    .frame(width: 100, height: 100)
+                    .contentShape(Rectangle())
+                
+                Text(sticker.content)
+                    .font(.system(size: 60))
+                    .padding(15)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(isSelected ? Color.white : Color.clear, style: StrokeStyle(lineWidth: 3, dash: [8, 4]))
+                            .shadow(color: .black.opacity(0.3), radius: 2)
+                    )
+            }
+            // Apply scale/rotation to the visuals
+            .scaleEffect(sticker.scale * currentScale)
+            .rotationEffect(sticker.rotation + currentRotation)
+            // Apply MOVE gesture ONLY to this content group
+            .onTapGesture {
+                print("DEBUG: Sticker tapped (\(sticker.content))")
+                onSelect()
+                hapticFeedback()
+            }
+            .highPriorityGesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        if dragOffset == .zero {
+                            print("DEBUG: Sticker Drag Start (\(sticker.content))")
+                            onSelect()
+                            hapticFeedback()
+                        }
+                        dragOffset = value.translation
+                    }
+                    .onEnded { value in
+                        print("DEBUG: Sticker Drag End (\(sticker.content))")
+                        let totalScale = parentTransform.canvasScale * parentTransform.fgScale
+                        let angle = -parentTransform.rotation * .pi / 180
+                        let dx = value.translation.width / (containerSize.width * totalScale)
+                        let dy = value.translation.height / (containerSize.height * totalScale)
+                        let rotatedDX = dx * cos(angle) - dy * sin(angle)
+                        let rotatedDY = dx * sin(angle) + dy * cos(angle)
+                        sticker.position.x += rotatedDX
+                        sticker.position.y += rotatedDY
+                        dragOffset = .zero
+                    }
+                .simultaneously(with: 
+                    MagnificationGesture()
+                        .onChanged { value in
+                            if !isSelected { return }
+                            if currentScale == 1.0 { print("DEBUG: Sticker Zoom Start (\(sticker.content))") }
+                            currentScale = value
+                        }
+                        .onEnded { value in
+                            if !isSelected { return }
+                            print("DEBUG: Sticker Zoom End (\(sticker.content))")
+                            sticker.scale *= value
+                            currentScale = 1.0
+                        }
+                )
+                .simultaneously(with: 
+                    RotationGesture()
+                        .onChanged { value in
+                            if !isSelected { return }
+                            if currentRotation == .zero { print("DEBUG: Sticker Rotation Start (\(sticker.content))") }
+                            currentRotation = value
+                        }
+                        .onEnded { value in
+                            if !isSelected { return }
+                            print("DEBUG: Sticker Rotation End (\(sticker.content))")
+                            sticker.rotation += value
+                            currentRotation = .zero
+                        }
+                )
+            )
             
-            // Selection Handles (only visible when selected)
+            // Handles are overlayed but NOT affected by the move gesture above.
+            // They need to track the position/rotation/scale of the sticker visually.
             if isSelected {
                 selectionHandles
+                    .scaleEffect(sticker.scale * currentScale)
+                    .rotationEffect(sticker.rotation + currentRotation)
             }
-            
-            Text(sticker.content)
-                .font(.system(size: 60))
-                .padding(15)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(isSelected ? Color.white : Color.clear, style: StrokeStyle(lineWidth: 3, dash: [8, 4]))
-                        .shadow(color: .black.opacity(0.3), radius: 2)
-                )
         }
-        .scaleEffect(sticker.scale * currentScale)
-        .rotationEffect(sticker.rotation + currentRotation)
         .position(screenPosition)
-        .highPriorityGesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { value in
-                    if dragOffset == .zero {
-                        print("DEBUG: Sticker Drag Start (\(sticker.content))")
-                        onSelect()
-                        hapticFeedback()
-                    }
-                    dragOffset = value.translation
-                }
-                .onEnded { value in
-                    print("DEBUG: Sticker Drag End (\(sticker.content))")
-                    let totalScale = parentTransform.canvasScale * parentTransform.fgScale
-                    let angle = -parentTransform.rotation * .pi / 180
-                    let dx = value.translation.width / (containerSize.width * totalScale)
-                    let dy = value.translation.height / (containerSize.height * totalScale)
-                    let rotatedDX = dx * cos(angle) - dy * sin(angle)
-                    let rotatedDY = dx * sin(angle) + dy * cos(angle)
-                    sticker.position.x += rotatedDX
-                    sticker.position.y += rotatedDY
-                    dragOffset = .zero
-                }
-            .simultaneously(with: 
-                MagnificationGesture()
-                    .onChanged { value in
-                        if !isSelected { return }
-                        if currentScale == 1.0 { print("DEBUG: Sticker Zoom Start (\(sticker.content))") }
-                        currentScale = value
-                    }
-                    .onEnded { value in
-                        if !isSelected { return }
-                        print("DEBUG: Sticker Zoom End (\(sticker.content))")
-                        sticker.scale *= value
-                        currentScale = 1.0
-                    }
-            )
-            .simultaneously(with: 
-                RotationGesture()
-                    .onChanged { value in
-                        if !isSelected { return }
-                        if currentRotation == .zero { print("DEBUG: Sticker Rotation Start (\(sticker.content))") }
-                        currentRotation = value
-                    }
-                    .onEnded { value in
-                        if !isSelected { return }
-                        print("DEBUG: Sticker Rotation End (\(sticker.content))")
-                        sticker.rotation += value
-                        currentRotation = .zero
-                    }
-            )
-        )
     }
     
     private var selectionHandles: some View {
@@ -504,23 +513,29 @@ struct StickerView: View {
             Circle().fill(.white).frame(width: 8, height: 8).offset(x: 45, y: -45)
             Circle().fill(.white).frame(width: 8, height: 8).offset(x: -45, y: 45)
             
+    private var selectionHandles: some View {
+        ZStack {
+            // Visualize 3 corners
+            Circle().fill(.white).frame(width: 8, height: 8).offset(x: 45, y: -45)
+            Circle().fill(.white).frame(width: 8, height: 8).offset(x: -45, y: 45)
+            
             // Top Left Handle: Delete Button
-            Button(action: {
-                hapticFeedback()
-                onDelete()
-            }) {
-                ZStack {
-                    Circle()
-                        .fill(Color.red)
-                        .frame(width: 28, height: 28)
-                        .shadow(radius: 2)
-                    
-                    Image(systemName: "xmark")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(.white)
-                }
+            ZStack {
+                Circle()
+                    .fill(Color.red)
+                    .frame(width: 28, height: 28)
+                    .shadow(radius: 2)
+                
+                Image(systemName: "xmark")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.white)
             }
             .offset(x: -45, y: -45)
+            .onTapGesture {
+                print("DEBUG: Delete handle tapped")
+                hapticFeedback()
+                onDelete()
+            }
             
             // Bottom Right Handle: Interactive Resize & Rotate
             ZStack {
@@ -536,7 +551,7 @@ struct StickerView: View {
             }
             .offset(x: 45, y: 45)
             .highPriorityGesture(
-                DragGesture(minimumDistance: 0)
+                DragGesture(minimumDistance: 0, coordinateSpace: .named("StickerContainer"))
                     .onChanged { value in
                         let center = screenPosition
                         let touch = value.location
@@ -549,6 +564,7 @@ struct StickerView: View {
                         let angle = Angle(radians: Double(atan2(dy, dx)))
                         
                         if initialHandleDistance == 1.0 { // Start of gesture
+                            print("DEBUG: Resize Handle Start")
                             initialHandleDistance = distance
                             initialHandleAngle = angle
                             initialStickerScale = sticker.scale
@@ -568,6 +584,7 @@ struct StickerView: View {
                         sticker.rotation = initialStickerRotation + deltaAngle
                     }
                     .onEnded { _ in
+                        print("DEBUG: Resize Handle End")
                         initialHandleDistance = 1.0
                         initialHandleAngle = .zero
                         hapticFeedback()
