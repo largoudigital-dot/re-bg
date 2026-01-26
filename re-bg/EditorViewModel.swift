@@ -22,6 +22,11 @@ struct EditorState: Equatable {
     var backgroundImage: UIImage?
 }
 
+enum ImageFormat {
+    case png
+    case jpg
+}
+
 class EditorViewModel: ObservableObject {
     @Published var originalImage: UIImage?
     @Published var foregroundImage: UIImage? // The image with background removed
@@ -64,6 +69,10 @@ class EditorViewModel: ObservableObject {
     
     var isColorActive: Bool {
         backgroundColor != nil || gradientColors != nil
+    }
+    
+    var isBackgroundTransparent: Bool {
+        backgroundColor == nil && gradientColors == nil && backgroundImage == nil
     }
     
     private let imageProcessor = ImageProcessor()
@@ -266,9 +275,22 @@ class EditorViewModel: ObservableObject {
         }
     }
     
-    func saveToGallery(completion: @escaping (Bool, String) -> Void) {
+    func saveToGallery(format: ImageFormat = .png, completion: @escaping (Bool, String) -> Void) {
         guard let image = processedImage else {
             completion(false, "Kein Bild zum Speichern")
+            return
+        }
+        
+        let data: Data?
+        switch format {
+        case .png:
+            data = image.pngData()
+        case .jpg:
+            data = image.jpegData(compressionQuality: 0.8)
+        }
+        
+        guard let finalData = data, let finalImage = UIImage(data: finalData) else {
+            completion(false, "Fehler bei der Bildverarbeitung")
             return
         }
         
@@ -281,16 +303,39 @@ class EditorViewModel: ObservableObject {
             }
             
             PHPhotoLibrary.shared().performChanges({
-                PHAssetChangeRequest.creationRequestForAsset(from: image)
+                PHAssetChangeRequest.creationRequestForAsset(from: finalImage)
             }) { success, error in
                 DispatchQueue.main.async {
                     if success {
-                        completion(true, "Foto gespeichert")
+                        completion(true, "Foto als \(format == .png ? "PNG" : "JPG") gespeichert")
                     } else {
                         completion(false, error?.localizedDescription ?? "Fehler beim Speichern")
                     }
                 }
             }
+        }
+    }
+    
+    func shareImage() {
+        guard let image = processedImage else { return }
+        
+        // Use PNG if there's transparency, JPG otherwise for sharing
+        let data = isBackgroundTransparent ? image.pngData() : image.jpegData(compressionQuality: 0.8)
+        guard let finalData = data, let finalImage = UIImage(data: finalData) else { return }
+        
+        let activityVC = UIActivityViewController(activityItems: [finalImage], applicationActivities: nil)
+        
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let rootVC = windowScene.windows.first?.rootViewController {
+            
+            // For iPad support
+            if let popover = activityVC.popoverPresentationController {
+                popover.sourceView = rootVC.view
+                popover.sourceRect = CGRect(x: rootVC.view.bounds.midX, y: rootVC.view.bounds.midY, width: 0, height: 0)
+                popover.permittedArrowDirections = []
+            }
+            
+            rootVC.present(activityVC, animated: true, completion: nil)
         }
     }
 }

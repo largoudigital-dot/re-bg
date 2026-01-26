@@ -139,11 +139,35 @@ struct EditorView: View {
                 
                 Button(action: {
                     hapticFeedback()
-                    viewModel.saveToGallery { success, message in
-                        saveMessage = message
-                        showingSaveAlert = true
-                    }
+                    viewModel.shareImage()
                 }) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 20, weight: .regular))
+                        .foregroundColor(.primary)
+                        .frame(width: 44, height: 44)
+                }
+                
+                Menu {
+                    Button(action: {
+                        hapticFeedback()
+                        viewModel.saveToGallery(format: .png) { success, message in
+                            saveMessage = message
+                            showingSaveAlert = true
+                        }
+                    }) {
+                        Label("Als PNG speichern\(viewModel.isBackgroundTransparent ? " (Empfohlen)" : "")", systemImage: "doc.richtext")
+                    }
+                    
+                    Button(action: {
+                        hapticFeedback()
+                        viewModel.saveToGallery(format: .jpg) { success, message in
+                            saveMessage = message
+                            showingSaveAlert = true
+                        }
+                    }) {
+                        Label("Als JPG speichern\(!viewModel.isBackgroundTransparent ? " (Empfohlen)" : "")", systemImage: "photo")
+                    }
+                } label: {
                     Image(systemName: "square.and.arrow.down")
                         .font(.system(size: 20, weight: .regular))
                         .foregroundColor(.primary)
