@@ -190,7 +190,10 @@ struct EditorView: View {
             let availableHeight = geometry.size.height
             
             let imageSize = viewModel.originalImage?.size ?? CGSize(width: 1, height: 1)
-            let imageAspectRatio = imageSize.width / imageSize.height
+            let rawAspectRatio = imageSize.width / imageSize.height
+            
+            // If rotated 90 or 270, swap aspect ratio
+            let imageAspectRatio = (Int(viewModel.rotation) % 180 != 0) ? (1.0 / rawAspectRatio) : rawAspectRatio
             
             // Determine the target aspect ratio based on user selection
             let targetAspectRatio: CGFloat = {
@@ -223,7 +226,8 @@ struct EditorView: View {
                             original: original,
                             backgroundColor: isShowingOriginal ? nil : viewModel.backgroundColor,
                             gradientColors: isShowingOriginal ? nil : viewModel.gradientColors,
-                            activeLayer: (selectedTab == .unsplash || selectedTab == .colors) ? .background : .foreground
+                            activeLayer: (selectedTab == .unsplash || selectedTab == .colors) ? .background : .foreground,
+                            rotation: viewModel.rotation
                         )
                         .id("photo-\(viewModel.rotation)-\(viewModel.originalImage?.hashValue ?? 0)")
                     }

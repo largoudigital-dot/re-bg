@@ -13,6 +13,7 @@ struct ZoomableImageView: View {
     let backgroundColor: Color?
     let gradientColors: [Color]?
     let activeLayer: SelectedLayer
+    let rotation: CGFloat
     
     // Foreground State
     @State private var fgScale: CGFloat = 1.0
@@ -95,6 +96,7 @@ struct ZoomableImageView: View {
                             .gesture(layerGesture(for: .foreground))
                     }
                 }
+                .rotationEffect(.degrees(rotation))
                 .scaleEffect(canvasScale)
                 .offset(canvasOffset)
                 // --- END CANVAS CONTAINER ---
