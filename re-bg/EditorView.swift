@@ -240,7 +240,8 @@ struct EditorView: View {
                             isCropping: viewModel.isCropping,
                             onCropCommit: { rect in
                                 viewModel.applyCrop(rect)
-                            }
+                            },
+                            stickers: $viewModel.stickers
                         )
                         .id("photo-\(viewModel.rotation)-\(viewModel.originalImage?.hashValue ?? 0)")
                     }

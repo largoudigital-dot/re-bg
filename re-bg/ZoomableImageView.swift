@@ -16,8 +16,9 @@ struct ZoomableImageView: View {
     let rotation: CGFloat
     let isCropping: Bool
     let onCropCommit: ((CGRect) -> Void)?
+    @Binding var stickers: [Sticker]
     
-    init(foreground: UIImage?, background: UIImage?, original: UIImage?, backgroundColor: Color?, gradientColors: [Color]?, activeLayer: SelectedLayer, rotation: CGFloat, isCropping: Bool = false, onCropCommit: ((CGRect) -> Void)? = nil) {
+    init(foreground: UIImage?, background: UIImage?, original: UIImage?, backgroundColor: Color?, gradientColors: [Color]?, activeLayer: SelectedLayer, rotation: CGFloat, isCropping: Bool = false, onCropCommit: ((CGRect) -> Void)? = nil, stickers: Binding<[Sticker]>) {
         self.foreground = foreground
         self.background = background
         self.original = original
@@ -27,6 +28,7 @@ struct ZoomableImageView: View {
         self.rotation = rotation
         self.isCropping = isCropping
         self.onCropCommit = onCropCommit
+        self._stickers = stickers
     }
     
     // Foreground State
@@ -105,6 +107,11 @@ struct ZoomableImageView: View {
                             
                             if isCropping, let commit = onCropCommit {
                                 CropOverlayView(onCommit: commit)
+                            }
+                            
+                            // Sticker Layer
+                            ForEach($stickers) { $sticker in
+                                StickerView(sticker: $sticker, containerSize: geometry.size)
                             }
                         }
                         .overlay(
@@ -277,5 +284,56 @@ struct ZoomableImageView: View {
             showHGuide = false
         }
         hapticFeedback()
+    }
+}
+
+struct StickerView: View {
+    @Binding var sticker: Sticker
+    let containerSize: CGSize
+    
+    @State private var dragOffset: CGSize = .zero
+    @State private var currentScale: CGFloat = 1.0
+    @State private var currentRotation: Angle = .zero
+    
+    var body: some View {
+        Text(sticker.content)
+            .font(.system(size: 60))
+            .scaleEffect(sticker.scale * currentScale)
+            .rotationEffect(sticker.rotation + currentRotation)
+            .position(
+                x: sticker.position.x * containerSize.width + dragOffset.width,
+                y: sticker.position.y * containerSize.height + dragOffset.height
+            )
+            .gesture(
+                DragGesture()
+                    .onChanged { value in
+                        dragOffset = value.translation
+                    }
+                    .onEnded { value in
+                        sticker.position.x += value.translation.width / containerSize.width
+                        sticker.position.y += value.translation.height / containerSize.height
+                        dragOffset = .zero
+                    }
+            )
+            .gesture(
+                MagnificationGesture()
+                    .onChanged { value in
+                        currentScale = value
+                    }
+                    .onEnded { value in
+                        sticker.scale *= value
+                        currentScale = 1.0
+                    }
+            )
+            .simultaneousGesture(
+                RotationGesture()
+                    .onChanged { value in
+                        currentRotation = value
+                    }
+                    .onEnded { value in
+                        sticker.rotation += value
+                        currentRotation = .zero
+                    }
+            )
     }
 }

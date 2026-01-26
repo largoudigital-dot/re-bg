@@ -353,7 +353,7 @@ class EditorViewModel: ObservableObject {
                 gradientColors: self.gradientColors,
                 backgroundImage: self.backgroundImage,
                 cropRect: self.appliedCropRect,
-                stickers: self.stickers
+                stickers: [] // No stickers in preview to avoid double-rendering with overlays
             )
             
             DispatchQueue.main.async {
@@ -365,17 +365,35 @@ class EditorViewModel: ObservableObject {
     }
     
     func saveToGallery(format: ImageFormat = .png, completion: @escaping (Bool, String) -> Void) {
-        guard let image = processedImage else {
+        guard let foreground = foregroundImage ?? originalImage else {
             completion(false, "Kein Bild zum Speichern")
             return
         }
         
+        // Generate final image with stickers burned in
+        let finalImage = self.imageProcessor.processImageWithCrop(
+            original: foreground,
+            filter: self.selectedFilter,
+            brightness: self.brightness,
+            contrast: self.contrast,
+            saturation: self.saturation,
+            blur: self.blur,
+            rotation: self.rotation,
+            aspectRatio: self.selectedAspectRatio.ratio,
+            customSize: self.customSize,
+            backgroundColor: self.backgroundColor,
+            gradientColors: self.gradientColors,
+            backgroundImage: self.backgroundImage,
+            cropRect: self.appliedCropRect,
+            stickers: self.stickers // Burn them in here
+        ) ?? foreground
+
         let data: Data?
         switch format {
         case .png:
-            data = image.pngData()
+            data = finalImage.pngData()
         case .jpg:
-            data = image.jpegData(compressionQuality: 0.8)
+            data = finalImage.jpegData(compressionQuality: 0.8)
         }
         
         guard let finalData = data, let finalImage = UIImage(data: finalData) else {
@@ -406,10 +424,27 @@ class EditorViewModel: ObservableObject {
     }
     
     func shareImage() {
-        guard let image = processedImage else { return }
+        guard let foreground = foregroundImage ?? originalImage else { return }
+        
+        let finalImage = self.imageProcessor.processImageWithCrop(
+            original: foreground,
+            filter: self.selectedFilter,
+            brightness: self.brightness,
+            contrast: self.contrast,
+            saturation: self.saturation,
+            blur: self.blur,
+            rotation: self.rotation,
+            aspectRatio: self.selectedAspectRatio.ratio,
+            customSize: self.customSize,
+            backgroundColor: self.backgroundColor,
+            gradientColors: self.gradientColors,
+            backgroundImage: self.backgroundImage,
+            cropRect: self.appliedCropRect,
+            stickers: self.stickers
+        ) ?? foreground
         
         // Use PNG if there's transparency, JPG otherwise for sharing
-        let data = isBackgroundTransparent ? image.pngData() : image.jpegData(compressionQuality: 0.8)
+        let data = isBackgroundTransparent ? finalImage.pngData() : finalImage.jpegData(compressionQuality: 0.8)
         guard let finalData = data, let finalImage = UIImage(data: finalData) else { return }
         
         let activityVC = UIActivityViewController(activityItems: [finalImage], applicationActivities: nil)
