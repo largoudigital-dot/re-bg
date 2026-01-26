@@ -406,6 +406,16 @@ struct StickerView: View {
     
     var body: some View {
         ZStack {
+            // Invisible larger hit area for easier selection
+            Color.black.opacity(0.001)
+                .frame(width: 80, height: 80)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    print("DEBUG: Sticker tapped (\(sticker.content))")
+                    onSelect()
+                    hapticFeedback()
+                }
+            
             // Selection Handles (only visible when selected)
             if isSelected {
                 selectionHandles
@@ -424,7 +434,7 @@ struct StickerView: View {
         .rotationEffect(sticker.rotation + currentRotation)
         .position(screenPosition)
         .highPriorityGesture(
-            DragGesture()
+            DragGesture(minimumDistance: 0)
                 .onChanged { value in
                     if dragOffset == .zero {
                         print("DEBUG: Sticker Drag Start (\(sticker.content))")
@@ -435,44 +445,44 @@ struct StickerView: View {
                 }
                 .onEnded { value in
                     print("DEBUG: Sticker Drag End (\(sticker.content))")
-                    // Convert screen-space translation back to normalized photo coordinates
                     let totalScale = parentTransform.canvasScale * parentTransform.fgScale
                     let angle = -parentTransform.rotation * .pi / 180
-                    
                     let dx = value.translation.width / (containerSize.width * totalScale)
                     let dy = value.translation.height / (containerSize.height * totalScale)
-                    
                     let rotatedDX = dx * cos(angle) - dy * sin(angle)
                     let rotatedDY = dx * sin(angle) + dy * cos(angle)
-                    
                     sticker.position.x += rotatedDX
                     sticker.position.y += rotatedDY
                     dragOffset = .zero
                 }
-        )
-        .highPriorityGesture(
-            isSelected ? MagnificationGesture()
-                .onChanged { value in
-                    if currentScale == 1.0 { print("DEBUG: Sticker Zoom Start (\(sticker.content))") }
-                    currentScale = value
-                }
-                .onEnded { value in
-                    print("DEBUG: Sticker Zoom End (\(sticker.content))")
-                    sticker.scale *= value
-                    currentScale = 1.0
-                } : nil
-        )
-        .highPriorityGesture(
-            isSelected ? RotationGesture()
-                .onChanged { value in
-                    if currentRotation == .zero { print("DEBUG: Sticker Rotation Start (\(sticker.content))") }
-                    currentRotation = value
-                }
-                .onEnded { value in
-                    print("DEBUG: Sticker Rotation End (\(sticker.content))")
-                    sticker.rotation += value
-                    currentRotation = .zero
-                } : nil
+            .simultaneously(with: 
+                MagnificationGesture()
+                    .onChanged { value in
+                        if !isSelected { return }
+                        if currentScale == 1.0 { print("DEBUG: Sticker Zoom Start (\(sticker.content))") }
+                        currentScale = value
+                    }
+                    .onEnded { value in
+                        if !isSelected { return }
+                        print("DEBUG: Sticker Zoom End (\(sticker.content))")
+                        sticker.scale *= value
+                        currentScale = 1.0
+                    }
+            )
+            .simultaneously(with: 
+                RotationGesture()
+                    .onChanged { value in
+                        if !isSelected { return }
+                        if currentRotation == .zero { print("DEBUG: Sticker Rotation Start (\(sticker.content))") }
+                        currentRotation = value
+                    }
+                    .onEnded { value in
+                        if !isSelected { return }
+                        print("DEBUG: Sticker Rotation End (\(sticker.content))")
+                        sticker.rotation += value
+                        currentRotation = .zero
+                    }
+            )
         )
     }
     
