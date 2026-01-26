@@ -13,6 +13,8 @@ struct ZoomableImageView: View {
     let backgroundColor: Color?
     let gradientColors: [Color]?
     let activeLayer: SelectedLayer
+    let rotation: CGFloat
+    let isCropping: Bool
     let onCropCommit: ((CGRect) -> Void)?
     @Binding var stickers: [Sticker]
     @Binding var selectedStickerId: UUID?
