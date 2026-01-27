@@ -50,6 +50,7 @@ class EditorViewModel: ObservableObject {
     @Published var foregroundImage: UIImage? // The image with background removed
     @Published var backgroundImage: UIImage?
     @Published var processedImage: UIImage?
+    @Published var fullProcessedImage: UIImage? // The image with all adjustments but NO CROP
     
     @Published var selectedFilter: FilterType = .none
     // ... rest of properties
@@ -213,21 +214,11 @@ class EditorViewModel: ObservableObject {
     }
     
     func applyCrop(_ rect: CGRect) {
-        // "rect" is the relative crop rect (0-1) of the CURRENTLY DISPLAYED image.
-        // We need to convert this to cumulative crop relative to the original image.
-        
-        let currentCrop = appliedCropRect ?? CGRect(x: 0, y: 0, width: 1, height: 1)
-        
-        let newX = currentCrop.minX + (rect.minX * currentCrop.width)
-        let newY = currentCrop.minY + (rect.minY * currentCrop.height)
-        let newW = rect.width * currentCrop.width
-        let newH = rect.height * currentCrop.height
-        
-        // Update cumulative crop
-        let newCumulativeCrop = CGRect(x: newX, y: newY, width: newW, height: newH)
-        
+        // Now "rect" is relative to the FULL processed image,
+        // because we show the full image in crop mode.
         saveState()
-        appliedCropRect = newCumulativeCrop
+        appliedCropRect = rect
+        isCropping = false // Exit crop mode so the cropped image becomes visible
         updateProcessedImage()
     }
     
@@ -351,7 +342,26 @@ class EditorViewModel: ObservableObject {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
             
-            let processed = self.imageProcessor.processImageWithCrop(
+            // 1. Generate FULL processed image (no crop)
+            let full = self.imageProcessor.processImageWithCrop(
+                original: foreground,
+                filter: self.selectedFilter,
+                brightness: self.brightness,
+                contrast: self.contrast,
+                saturation: self.saturation,
+                blur: self.blur,
+                rotation: self.rotation,
+                aspectRatio: nil, // No aspect ratio crop here
+                customSize: nil,   // No custom size crop here
+                backgroundColor: nil,
+                gradientColors: nil,
+                backgroundImage: nil,
+                cropRect: nil,     // No free crop here
+                stickers: []
+            )
+            
+            // 2. Generate CROPPED processed image
+            let cropped = self.imageProcessor.processImageWithCrop(
                 original: foreground,
                 filter: self.selectedFilter,
                 brightness: self.brightness,
@@ -361,16 +371,17 @@ class EditorViewModel: ObservableObject {
                 rotation: self.rotation,
                 aspectRatio: self.selectedAspectRatio.ratio,
                 customSize: self.customSize,
-                backgroundColor: self.backgroundColor,
-                gradientColors: self.gradientColors,
-                backgroundImage: self.backgroundImage,
+                backgroundColor: nil,
+                gradientColors: nil,
+                backgroundImage: nil,
                 cropRect: self.appliedCropRect,
-                stickers: [] // No stickers in preview to avoid double-rendering with overlays
+                stickers: []
             )
             
             DispatchQueue.main.async {
                 withAnimation(.easeInOut(duration: 0.3)) {
-                    self.processedImage = processed ?? foreground
+                    self.fullProcessedImage = full ?? foreground
+                    self.processedImage = cropped ?? foreground
                 }
             }
         }
