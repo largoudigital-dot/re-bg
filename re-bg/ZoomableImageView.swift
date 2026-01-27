@@ -445,7 +445,7 @@ struct StickerView: View {
                 hapticFeedback()
             }
             .highPriorityGesture(
-                DragGesture(minimumDistance: 0)
+                DragGesture(minimumDistance: 0, coordinateSpace: .named("StickerContainer"))
                     .onChanged { value in
                         if dragOffset == .zero {
                             print("DEBUG: Sticker Drag Start (\(sticker.content))")
