@@ -83,6 +83,13 @@ struct CanvasTabView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(AspectRatio.allCases) { ratio in
+                        let isActuallySelected: Bool = {
+                            if ratio == .free {
+                                return viewModel.selectedAspectRatio == .free && viewModel.isCropping
+                            }
+                            return viewModel.selectedAspectRatio == ratio
+                        }()
+                        
                         Button(action: {
                             hapticFeedback()
                             
@@ -106,16 +113,16 @@ struct CanvasTabView: View {
                             }
                         }) {
                             VStack(spacing: 6) {
-                                AspectRatioIcon(ratio: ratio, isSelected: viewModel.selectedAspectRatio == ratio)
+                                AspectRatioIcon(ratio: ratio, isSelected: isActuallySelected)
                                 
                                 if !ratio.displayLabel.isEmpty {
                                     Text(ratio.displayLabel)
                                         .font(.system(size: 9, weight: .medium))
                                 }
                             }
-                            .foregroundColor(viewModel.selectedAspectRatio == ratio ? .black : .primary)
+                            .foregroundColor(isActuallySelected ? .black : .primary)
                             .frame(width: 52, height: 60)
-                            .background(viewModel.selectedAspectRatio == ratio ? Color.white : Color(white: 0.9))
+                            .background(isActuallySelected ? Color.white : Color(white: 0.9))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 8)
                                     .stroke(Color.primary.opacity(0.1), lineWidth: 1)

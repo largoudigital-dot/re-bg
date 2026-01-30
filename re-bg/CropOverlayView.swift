@@ -25,21 +25,24 @@ struct CropOverlayView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // Dimmed background with hole - Only show while dragging
+                // Dimmed background with hole - ALWAYS visible when in crop mode
+                DimmedBackgroundWithHole(hole: CGRect(
+                    x: cropRect.minX * geometry.size.width,
+                    y: cropRect.minY * geometry.size.height,
+                    width: cropRect.width * geometry.size.width,
+                    height: cropRect.height * geometry.size.height
+                ))
+                .fill(Color.black.opacity(0.4), style: FillStyle(eoFill: true))
+                
+                // Rule of Thirds Grid - Only show while dragging for guidance
                 if isDragging {
-                    DimmedBackgroundWithHole(hole: CGRect(
-                        x: cropRect.minX * geometry.size.width,
-                        y: cropRect.minY * geometry.size.height,
-                        width: cropRect.width * geometry.size.width,
-                        height: cropRect.height * geometry.size.height
-                    ))
-                    .fill(Color.black.opacity(0.5), style: FillStyle(eoFill: true))
-                    .transition(.opacity)
+                    GridView(rect: cropRect, geometry: geometry)
+                        .transition(.opacity)
                 }
                 
                 // Border
                 Rectangle()
-                    .stroke(Color.white, lineWidth: 2)
+                    .stroke(Color.white, lineWidth: 2.5) // Slightly thicker for better visibility
                     .frame(
                         width: cropRect.width * geometry.size.width,
                         height: cropRect.height * geometry.size.height
@@ -79,7 +82,7 @@ struct CropOverlayView: View {
             y = (cropRect.minY + cropRect.height) * size.height
         }
         
-        return CropHandle(position: mapCorner(corner))
+        return EnhancedCropHandle(position: mapCorner(corner))
             .position(x: x, y: y)
             .gesture(
                 DragGesture()
@@ -109,7 +112,7 @@ struct CropOverlayView: View {
         case topLeft, topRight, bottomLeft, bottomRight
     }
     
-    private func mapCorner(_ c: Corner) -> CropHandle.Position {
+    private func mapCorner(_ c: Corner) -> EnhancedCropHandle.Position {
         switch c {
         case .topLeft: return .topLeft
         case .topRight: return .topRight
@@ -173,6 +176,38 @@ struct CropOverlayView: View {
     }
 }
 
+struct EnhancedCropHandle: View {
+    enum Position {
+        case topLeft, topRight, bottomLeft, bottomRight
+    }
+    
+    let position: Position
+    
+    var body: some View {
+        ZStack {
+            // Larger outer circle for better hit target visibility
+            Circle()
+                .fill(Color.white)
+                .frame(width: 28, height: 28)
+                .shadow(color: Color.black.opacity(0.3), radius: 3)
+            
+            // Inner icon
+            Image(systemName: iconName)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundColor(.black)
+        }
+    }
+    
+    var iconName: String {
+        switch position {
+        case .topLeft: return "arrow.up.left.and.arrow.down.right"
+        case .topRight: return "arrow.up.right.and.arrow.down.left"
+        case .bottomLeft: return "arrow.up.right.and.arrow.down.left"
+        case .bottomRight: return "arrow.up.left.and.arrow.down.right"
+        }
+    }
+}
+
 struct DimmedBackgroundWithHole: Shape {
     let hole: CGRect
 
@@ -181,5 +216,44 @@ struct DimmedBackgroundWithHole: Shape {
         path.addRect(rect)
         path.addRect(hole)
         return path
+    }
+}
+
+struct GridView: View {
+    let rect: CGRect
+    let geometry: GeometryProxy
+    
+    var body: some View {
+        ZStack {
+            // Horizontal lines
+            Path { path in
+                let x = rect.minX * geometry.size.width
+                let width = rect.width * geometry.size.width
+                let y1 = (rect.minY + rect.height / 3) * geometry.size.height
+                let y2 = (rect.minY + 2 * rect.height / 3) * geometry.size.height
+                
+                path.move(to: CGPoint(x: x, y: y1))
+                path.addLine(to: CGPoint(x: x + width, y: y1))
+                
+                path.move(to: CGPoint(x: x, y: y2))
+                path.addLine(to: CGPoint(x: x + width, y: y2))
+            }
+            .stroke(Color.white.opacity(0.35), lineWidth: 1)
+            
+            // Vertical lines
+            Path { path in
+                let y = rect.minY * geometry.size.height
+                let height = rect.height * geometry.size.height
+                let x1 = (rect.minX + rect.width / 3) * geometry.size.width
+                let x2 = (rect.minX + 2 * rect.width / 3) * geometry.size.width
+                
+                path.move(to: CGPoint(x: x1, y: y))
+                path.addLine(to: CGPoint(x: x1, y: y + height))
+                
+                path.move(to: CGPoint(x: x2, y: y))
+                path.addLine(to: CGPoint(x: x2, y: y + height))
+            }
+            .stroke(Color.white.opacity(0.35), lineWidth: 1)
+        }
     }
 }

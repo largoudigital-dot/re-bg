@@ -268,7 +268,8 @@ class ImageProcessor {
                               gradientColors: [Color]?,
                               backgroundImage: UIImage?,
                               cropRect: CGRect? = nil,
-                              stickers: [Sticker] = []) -> UIImage? {
+                              stickers: [Sticker] = [],
+                              textItems: [TextItem] = []) -> UIImage? {
         var processedImage = original
         
         // 0. Apply normalized crop rect if provided (Free Crop)
@@ -341,6 +342,11 @@ class ImageProcessor {
             processedImage = renderStickers(stickers, onto: processedImage) ?? processedImage
         }
         
+        // 5. Render Text Items
+        if !textItems.isEmpty {
+            processedImage = renderTextItems(textItems, onto: processedImage) ?? processedImage
+        }
+        
         return processedImage
     }
     
@@ -369,6 +375,70 @@ class ImageProcessor {
             ]
             
             string.draw(in: rect, withAttributes: attributes)
+            
+            context?.restoreGState()
+        }
+        
+        let result = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        return result
+    }
+    
+    private func renderTextItems(_ items: [TextItem], onto image: UIImage) -> UIImage? {
+        let size = image.size
+        UIGraphicsBeginImageContextWithOptions(size, false, image.scale)
+        
+        image.draw(in: CGRect(origin: .zero, size: size))
+        
+        let context = UIGraphicsGetCurrentContext()
+        
+        for item in items {
+            // Determine font and size (base it on image width)
+            let fontSize = size.width * 0.08 * item.scale
+            let font = UIFont(name: item.fontName, size: fontSize) ?? UIFont.systemFont(ofSize: fontSize, weight: .bold)
+            
+            // Calculate text size and layout
+            let paragraphStyle = NSMutableParagraphStyle()
+            switch item.alignment {
+            case .left: paragraphStyle.alignment = .left
+            case .center: paragraphStyle.alignment = .center
+            case .right: paragraphStyle.alignment = .right
+            }
+            
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: font,
+                .foregroundColor: UIColor(item.color),
+                .paragraphStyle: paragraphStyle
+            ]
+            
+            let attributedString = NSAttributedString(string: item.text, attributes: attributes)
+            let textSize = attributedString.size()
+            
+            // Background padding
+            let padding = fontSize * 0.4
+            let bgRect = CGRect(x: -textSize.width/2 - padding, 
+                                y: -textSize.height/2 - padding/2, 
+                                width: textSize.width + padding * 2, 
+                                height: textSize.height + padding)
+            
+            let x = item.position.x * size.width
+            let y = item.position.y * size.height
+            
+            context?.saveGState()
+            context?.translateBy(x: x, y: y)
+            context?.rotate(by: CGFloat(item.rotation.radians))
+            
+            // Draw background if needed
+            if item.backgroundStyle != .none {
+                let opacity = item.backgroundStyle == .solid ? 1.0 : 0.6
+                UIColor(item.backgroundColor).withAlphaComponent(opacity).setFill()
+                let path = UIBezierPath(roundedRect: bgRect, cornerRadius: padding * 0.5)
+                path.fill()
+            }
+            
+            // Draw text
+            let textRect = CGRect(x: -textSize.width/2, y: -textSize.height/2, width: textSize.width, height: textSize.height)
+            attributedString.draw(in: textRect)
             
             context?.restoreGState()
         }

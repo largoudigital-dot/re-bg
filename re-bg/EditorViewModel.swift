@@ -22,6 +22,7 @@ struct EditorState: Equatable {
     var backgroundImage: UIImage?
     var cropRect: CGRect? // Normalized applied crop
     var stickers: [Sticker]
+    var textItems: [TextItem]
     
     static func == (lhs: EditorState, rhs: EditorState) -> Bool {
         return lhs.selectedFilter == rhs.selectedFilter &&
@@ -36,7 +37,8 @@ struct EditorState: Equatable {
             lhs.gradientColors == rhs.gradientColors &&
             lhs.backgroundImage === rhs.backgroundImage &&
             lhs.cropRect == rhs.cropRect &&
-            lhs.stickers == rhs.stickers
+            lhs.stickers == rhs.stickers &&
+            lhs.textItems == rhs.textItems
     }
 }
 
@@ -74,6 +76,11 @@ class EditorViewModel: ObservableObject {
     @Published var selectedStickerId: UUID? = nil
     @Published var showingEmojiPicker = false
     
+    // Text State
+    @Published var textItems: [TextItem] = []
+    @Published var selectedTextId: UUID? = nil
+    @Published var showingTextEditor = false
+    
     // Undo/Redo Stacks
     private var undoStack: [EditorState] = []
     private var redoStack: [EditorState] = []
@@ -84,7 +91,7 @@ class EditorViewModel: ObservableObject {
     
     // Status indicators
     var isCanvasActive: Bool {
-        selectedAspectRatio != .original || rotation != 0 || customSize != nil || isCropping
+        selectedAspectRatio != .original || rotation != 0 || customSize != nil || isCropping || !textItems.isEmpty
     }
     
     var isFilterActive: Bool {
@@ -101,6 +108,23 @@ class EditorViewModel: ObservableObject {
     
     var isBackgroundTransparent: Bool {
         backgroundColor == nil && gradientColors == nil && backgroundImage == nil
+    }
+    
+    var hasChanges: Bool {
+        // Any undo history or active non-default state indicates changes
+        return !undoStack.isEmpty || 
+               selectedFilter != .none || 
+               brightness != 1.0 || 
+               contrast != 1.0 || 
+               saturation != 1.0 || 
+               blur != 0.0 || 
+               rotation != 0 || 
+               selectedAspectRatio != .original || 
+               !stickers.isEmpty ||
+               backgroundColor != nil ||
+               gradientColors != nil ||
+               backgroundImage != nil ||
+               appliedCropRect != nil
     }
     
     private let imageProcessor = ImageProcessor()
@@ -132,7 +156,8 @@ class EditorViewModel: ObservableObject {
             gradientColors: gradientColors,
             backgroundImage: backgroundImage,
             cropRect: appliedCropRect,
-            stickers: stickers
+            stickers: stickers,
+            textItems: textItems
         )
     }
     
@@ -192,6 +217,7 @@ class EditorViewModel: ObservableObject {
         backgroundImage = state.backgroundImage
         appliedCropRect = state.cropRect
         stickers = state.stickers
+        textItems = state.textItems
     }
     
     func setBackgroundImage(_ image: UIImage) {
@@ -250,6 +276,43 @@ class EditorViewModel: ObservableObject {
         }
         stickers.removeAll(where: { $0.id == id })
         updateProcessedImage()
+    }
+    
+    // MARK: - Text Management
+    
+    func addTextItem(_ item: TextItem) {
+        saveState()
+        textItems.append(item)
+        updateProcessedImage()
+    }
+    
+    func updateTextItem(_ item: TextItem) {
+        if let index = textItems.firstIndex(where: { $0.id == item.id }) {
+            textItems[index] = item
+            updateProcessedImage()
+        }
+    }
+    
+    func removeTextItem(id: UUID) {
+        saveState()
+        if selectedTextId == id {
+            selectedTextId = nil
+        }
+        textItems.removeAll(where: { $0.id == id })
+        updateProcessedImage()
+    }
+    
+    func selectTextItem(id: UUID) {
+        selectedTextId = id
+        selectedStickerId = nil // Exclusivity
+    }
+    
+    func deselectTextItem() {
+        selectedTextId = nil
+    }
+    
+    func finalizeTextUpdate() {
+        saveState()
     }
     
     func selectSticker(id: UUID) {
@@ -375,7 +438,8 @@ class EditorViewModel: ObservableObject {
                 gradientColors: nil,
                 backgroundImage: nil,
                 cropRect: self.appliedCropRect,
-                stickers: []
+                stickers: [],
+                textItems: self.textItems // Render text items in preview
             )
             
             DispatchQueue.main.async {
@@ -408,7 +472,8 @@ class EditorViewModel: ObservableObject {
             gradientColors: self.gradientColors,
             backgroundImage: self.backgroundImage,
             cropRect: self.appliedCropRect,
-            stickers: self.stickers // Burn them in here
+            stickers: self.stickers, // Burn them in here
+            textItems: self.textItems // Burn text items in final image
         ) ?? foreground
 
         let data: Data?
@@ -463,7 +528,8 @@ class EditorViewModel: ObservableObject {
             gradientColors: self.gradientColors,
             backgroundImage: self.backgroundImage,
             cropRect: self.appliedCropRect,
-            stickers: self.stickers
+            stickers: self.stickers,
+            textItems: self.textItems
         ) ?? foreground
         
         // Use PNG if there's transparency, JPG otherwise for sharing

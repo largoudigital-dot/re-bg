@@ -51,7 +51,9 @@ struct EditorView: View {
     @State private var showingSaveAlert = false
     @State private var saveMessage = ""
     @State private var showingUnsplashPicker = false
+    @State private var showingExitAlert = false
     @State private var isShowingOriginal = false
+    @State private var tempTextItem: TextItem? = nil
     @Environment(\.dismiss) private var dismiss
     
     let selectedImage: UIImage
@@ -61,21 +63,58 @@ struct EditorView: View {
     }
     
     var body: some View {
-        photoArea
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding(.horizontal, 1) // 1px horizontal padding as requested
-            .safeAreaInset(edge: .top, spacing: 0) {
-                navigationBar
+        ZStack {
+            photoArea
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.horizontal, 1) // 1px horizontal padding as requested
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    navigationBar
+                        .opacity(viewModel.showingTextEditor ? 0 : 1)
+                        .allowsHitTesting(!viewModel.showingTextEditor)
+                }
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    bottomBar
+                        .opacity(viewModel.showingTextEditor ? 0 : 1)
+                        .allowsHitTesting(!viewModel.showingTextEditor)
+                }
+                .background(Color.white.ignoresSafeArea())
+                .ignoresSafeArea(.keyboard)
+                .navigationBarHidden(true)
+                .preferredColorScheme(.light)
+                .onAppear {
+                    viewModel.setImage(selectedImage)
+                }
+            
+            if viewModel.showingTextEditor, let item = tempTextItem {
+                TextEditorOverlay(
+                    textItem: Binding(
+                        get: { item },
+                        set: { tempTextItem = $0 }
+                    ),
+                    onDone: {
+                        if let updated = tempTextItem {
+                            if viewModel.textItems.contains(where: { $0.id == updated.id }) {
+                                viewModel.updateTextItem(updated)
+                            } else if !updated.text.isEmpty {
+                                viewModel.addTextItem(updated)
+                            }
+                        }
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            viewModel.showingTextEditor = false
+                        }
+                        tempTextItem = nil
+                    },
+                    onCancel: {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            viewModel.showingTextEditor = false
+                        }
+                        tempTextItem = nil
+                    }
+                )
+                .transition(.opacity)
+                .zIndex(2000)
             }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                bottomBar
-            }
-            .background(Color.white.ignoresSafeArea())
-            .navigationBarHidden(true)
-            .preferredColorScheme(.light)
-            .onAppear {
-                viewModel.setImage(selectedImage)
-            }
+        }
             .alert("Speichern", isPresented: $showingSaveAlert) {
                 Button("OK", role: .cancel) { }
             } message: {
@@ -92,6 +131,14 @@ struct EditorView: View {
                     viewModel.showingEmojiPicker = false
                 }
                 .presentationDetents([.medium, .large])
+            }
+            .alert("Änderungen verwerfen?", isPresented: $showingExitAlert) {
+                Button("Abbrechen", role: .cancel) { }
+                Button("Verwerfen", role: .destructive) {
+                    dismiss()
+                }
+            } message: {
+                Text("Möchten Sie alle Änderungen an diesem Foto wirklich verwerfen?")
             }
     }
     
@@ -141,7 +188,11 @@ struct EditorView: View {
             HStack {
                 Button(action: {
                     hapticFeedback()
-                    dismiss()
+                    if viewModel.hasChanges {
+                        showingExitAlert = true
+                    } else {
+                        dismiss()
+                    }
                 }) {
                     Image(systemName: "xmark")
                         .font(.system(size: 17, weight: .semibold))
@@ -260,6 +311,11 @@ struct EditorView: View {
                             selectedStickerId: $viewModel.selectedStickerId,
                             onDeleteSticker: { id in
                                 viewModel.removeSticker(id: id)
+                            },
+                            textItems: $viewModel.textItems,
+                            selectedTextId: $viewModel.selectedTextId,
+                            onDeleteText: { id in
+                                viewModel.removeTextItem(id: id)
                             }
                         )
                         .id("photo-\(viewModel.rotation)-\(viewModel.originalImage?.hashValue ?? 0)")
@@ -289,15 +345,19 @@ struct EditorView: View {
             .overlay(alignment: .bottom) {
                 rotationControls
                     .padding(.bottom, 24)
+                    .opacity(viewModel.showingTextEditor ? 0 : 1)
+                    .allowsHitTesting(!viewModel.showingTextEditor)
             }
             .overlay(alignment: .topTrailing) {
                 VStack(spacing: 12) {
                     compareButton
-                    
+                    textButton
                     stickerButton
                 }
                 .padding(.top, 16)
                 .padding(.trailing, 16)
+                .opacity(viewModel.showingTextEditor ? 0 : 1)
+                .allowsHitTesting(!viewModel.showingTextEditor)
             }
         }
     }
@@ -399,6 +459,25 @@ struct EditorView: View {
                     }
                 }
         )
+    }
+    
+    private var textButton: some View {
+        Button(action: {
+            hapticFeedback()
+            tempTextItem = TextItem()
+            withAnimation(.easeInOut(duration: 0.2)) {
+                viewModel.showingTextEditor = true
+            }
+        }) {
+            Image(systemName: "textformat")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundColor(.primary)
+                .frame(width: 44, height: 44)
+                .background(Color.white.opacity(0.7))
+                .background(.ultraThinMaterial)
+                .clipShape(Circle())
+                .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
+        }
     }
     
     private var stickerButton: some View {
