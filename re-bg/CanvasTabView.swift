@@ -73,6 +73,9 @@ enum AspectRatio: String, CaseIterable, Identifiable {
 
 struct CanvasTabView: View {
     @ObservedObject var viewModel: EditorViewModel
+    @State private var showingCustomSizeDialog = false
+    @State private var customWidth: String = "1080"
+    @State private var customHeight: String = "1080"
     
     var body: some View {
         VStack(spacing: 0) {
@@ -82,18 +85,23 @@ struct CanvasTabView: View {
                     ForEach(AspectRatio.allCases) { ratio in
                         Button(action: {
                             hapticFeedback()
-                            viewModel.saveState()
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                viewModel.selectedAspectRatio = ratio
-                                if ratio != .custom {
-                                    viewModel.customSize = nil
-                                }
-                                
-                                if ratio == .free {
-                                    viewModel.startCropping()
-                                } else {
-                                    viewModel.cancelCropping()
-                                    viewModel.updateAdjustment()
+                            
+                            if ratio == .custom {
+                                showingCustomSizeDialog = true
+                            } else {
+                                viewModel.saveState()
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                    viewModel.selectedAspectRatio = ratio
+                                    if ratio != .custom {
+                                        viewModel.customSize = nil
+                                    }
+                                    
+                                    if ratio == .free {
+                                        viewModel.startCropping()
+                                    } else {
+                                        viewModel.cancelCropping()
+                                        viewModel.updateAdjustment()
+                                    }
                                 }
                             }
                         }) {
@@ -120,6 +128,24 @@ struct CanvasTabView: View {
             }
             .frame(height: 80)
             .padding(.bottom, 10)
+        }
+        .alert("Eigene Größe", isPresented: $showingCustomSizeDialog) {
+            TextField("Breite (px)", text: $customWidth)
+                .keyboardType(.numberPad)
+            TextField("Höhe (px)", text: $customHeight)
+                .keyboardType(.numberPad)
+            Button("Abbrechen", role: .cancel) { }
+            Button("OK") {
+                if let width = Double(customWidth), let height = Double(customHeight), width > 0, height > 0 {
+                    viewModel.saveState()
+                    viewModel.selectedAspectRatio = .custom
+                    viewModel.customSize = CGSize(width: width, height: height)
+                    viewModel.cancelCropping()
+                    viewModel.updateAdjustment()
+                }
+            }
+        } message: {
+            Text("Geben Sie die gewünschte Breite und Höhe in Pixeln ein.")
         }
     }
 }

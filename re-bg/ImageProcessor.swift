@@ -209,7 +209,8 @@ class ImageProcessor {
         let x = (width - newWidth) / 2
         let y = (height - newHeight) / 2
         
-        let cropRect = CGRect(x: x * image.scale, y: y * image.scale, width: newWidth * image.scale, height: newHeight * image.scale)
+        // x, y, newWidth, newHeight are already in pixels (from cgImage.width/height)
+        let cropRect = CGRect(x: x, y: y, width: newWidth, height: newHeight)
         
         guard let croppedCgImage = cgImage.cropping(to: cropRect) else { return image }
         return UIImage(cgImage: croppedCgImage, scale: image.scale, orientation: image.imageOrientation)
@@ -272,18 +273,32 @@ class ImageProcessor {
         
         // 0. Apply normalized crop rect if provided (Free Crop)
         if let rect = cropRect {
-             let width = CGFloat(processedImage.size.width)
-             let height = CGFloat(processedImage.size.height)
+             guard let cgImage = processedImage.cgImage else { return processedImage }
              
-             let x = rect.minX * width
-             let y = rect.minY * height
-             let w = rect.width * width
-             let h = rect.height * height
+             // IMPORTANT: Use UIImage.size which accounts for orientation,
+             // not cgImage.width/height which are raw pixel dimensions
+             let imageSize = processedImage.size
              
+             // Convert normalized coordinates (0-1) to actual pixel coordinates
+             let x = rect.minX * imageSize.width
+             let y = rect.minY * imageSize.height
+             let w = rect.width * imageSize.width
+             let h = rect.height * imageSize.height
+             
+             // Create crop rectangle in image coordinate space
              let cropZone = CGRect(x: x, y: y, width: w, height: h)
              
-             if let cgImage = processedImage.cgImage?.cropping(to: cropZone) {
-                 processedImage = UIImage(cgImage: cgImage, scale: processedImage.scale, orientation: processedImage.imageOrientation)
+             // Scale the crop zone to match the actual CGImage pixel dimensions
+             let scale = processedImage.scale
+             let scaledCropZone = CGRect(
+                 x: cropZone.origin.x * scale,
+                 y: cropZone.origin.y * scale,
+                 width: cropZone.size.width * scale,
+                 height: cropZone.size.height * scale
+             )
+             
+             if let croppedCg = cgImage.cropping(to: scaledCropZone) {
+                 processedImage = UIImage(cgImage: croppedCg, scale: processedImage.scale, orientation: processedImage.imageOrientation)
              }
         }
         

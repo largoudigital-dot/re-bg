@@ -33,6 +33,9 @@ struct ColorsTabView: View {
                     case .gradients:
                         gradientsView
                             .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
+                    case .transparent:
+                        transparentView
+                            .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
                     }
                 }
                 .frame(maxHeight: .infinity)
@@ -100,6 +103,50 @@ struct ColorsTabView: View {
             }
             .padding(.horizontal, 20)
         }
+    }
+    
+    private var transparentView: some View {
+        VStack(spacing: 16) {
+            Button(action: {
+                hapticFeedback()
+                viewModel.saveState()
+                viewModel.backgroundColor = nil
+                viewModel.gradientColors = nil
+                viewModel.backgroundImage = nil
+                viewModel.updateAdjustment()
+            }) {
+                VStack(spacing: 12) {
+                    ZStack {
+                        // Checkered pattern to show transparency
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color(white: 0.9), Color(white: 0.7)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 60, height: 60)
+                        
+                        Image(systemName: "circle.dotted")
+                            .font(.system(size: 30, weight: .bold))
+                            .foregroundColor(.primary)
+                        
+                        if viewModel.backgroundColor == nil && viewModel.gradientColors == nil && viewModel.backgroundImage == nil {
+                            Circle()
+                                .stroke(Color.blue, lineWidth: 3)
+                                .frame(width: 68, height: 68)
+                        }
+                    }
+                    
+                    Text("Transparenter Hintergrund")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.primary)
+                }
+                .padding()
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

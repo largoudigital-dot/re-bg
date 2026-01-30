@@ -9,6 +9,7 @@ import SwiftUI
 
 enum EditorTab: String, CaseIterable, Identifiable {
     case crop = "Schnitt"
+    case filter = "Filter"
     case colors = "Farben"
     case adjust = "Anpassen"
     case unsplash = "Fotos"
@@ -18,6 +19,7 @@ enum EditorTab: String, CaseIterable, Identifiable {
     var iconName: String {
         switch self {
         case .crop: return "crop"
+        case .filter: return "camera.filters"
         case .colors: return "paintpalette"
         case .adjust: return "slider.horizontal.3"
         case .unsplash: return "photo.on.rectangle"
@@ -28,6 +30,7 @@ enum EditorTab: String, CaseIterable, Identifiable {
 enum ColorPickerTab: String, CaseIterable, Identifiable {
     case presets = "Presets"
     case gradients = "Verläufe"
+    case transparent = "Transparent"
     
     var id: String { rawValue }
     
@@ -35,6 +38,7 @@ enum ColorPickerTab: String, CaseIterable, Identifiable {
         switch self {
         case .presets: return "circle.grid.2x2"
         case .gradients: return "slider.horizontal.2.square"
+        case .transparent: return "circle.dotted"
         }
     }
 }
@@ -103,6 +107,9 @@ struct EditorView: View {
                             } else if let _ = selectedColorPicker {
                                 selectedColorPicker = nil
                             } else {
+                                if selectedTab == .crop {
+                                    viewModel.cancelCropping()
+                                }
                                 selectedTab = nil
                             }
                         }
@@ -196,20 +203,27 @@ struct EditorView: View {
             let availableWidth = geometry.size.width - 2 // Considering horizontal padding
             let availableHeight = geometry.size.height
             
-            // Use processedImage size if available to match the visible result (crucial for crop handling)
-            let displayImage = (isShowingOriginal ? viewModel.originalImage : viewModel.processedImage) ?? viewModel.originalImage
-            let imageSize = displayImage?.size ?? CGSize(width: 1, height: 1)
-            let rawAspectRatio = imageSize.width / imageSize.height
+            // Base image aspect ratio (stable, using original image)
+            let rawOriginalAspectRatio = (viewModel.originalImage?.size ?? CGSize(width: 1, height: 1)).width / (viewModel.originalImage?.size ?? CGSize(width: 1, height: 1)).height
+            let originalImageAspectRatio = (Int(viewModel.rotation) % 180 != 0) ? (1.0 / rawOriginalAspectRatio) : rawOriginalAspectRatio
+
+            // Current display image (might be cropped)
+            // Use fullProcessedImage specifically when CROPPING to allow boundary adjustments
+            let displayImage: UIImage? = {
+                if isShowingOriginal { return viewModel.originalImage }
+                // Always use the FULL processed image in the editor display
+                // to keep dimensions stable. ZoomableImageView will mask it.
+                return viewModel.fullProcessedImage ?? viewModel.processedImage ?? viewModel.originalImage
+            }() ?? viewModel.originalImage
             
-            // If rotated 90 or 270, swap aspect ratio
-            let imageAspectRatio = (Int(viewModel.rotation) % 180 != 0) ? (1.0 / rawAspectRatio) : rawAspectRatio
-            
-            // Determine the target aspect ratio based on user selection
+            // Determine the target aspect ratio for the CANVAS container
             let targetAspectRatio: CGFloat = {
                 if let ratio = viewModel.selectedAspectRatio.ratio {
                     return ratio
                 }
-                return imageAspectRatio // Default to original image ratio for .free, .original, etc.
+                // Use the ORIGINAL image aspect ratio as the base for the canvas
+                // to prevent it from resizing when the processed image (crop) changes.
+                return originalImageAspectRatio
             }()
             
             let containerAspectRatio = availableWidth / availableHeight
@@ -230,14 +244,15 @@ struct EditorView: View {
                 ZStack {
                     if let original = viewModel.originalImage {
                         ZoomableImageView(
-                            foreground: displayImage, // Show the full processed result (or original)
-                            background: nil, // Background is already composited in processedImage
+                            foreground: displayImage, // Show the processed foreground (without background baked in)
+                            background: viewModel.backgroundImage,
                             original: original,
-                            backgroundColor: nil, // Encoded in processedImage
-                            gradientColors: nil, // Encoded in processedImage
+                            backgroundColor: viewModel.backgroundColor,
+                            gradientColors: viewModel.gradientColors,
                             activeLayer: .foreground, // Treat as single layer
                             rotation: viewModel.rotation,
                             isCropping: viewModel.isCropping,
+                            appliedCropRect: viewModel.appliedCropRect,
                             onCropCommit: { rect in
                                 viewModel.applyCrop(rect)
                             },
@@ -431,6 +446,7 @@ struct EditorView: View {
     private func isTabActive(_ tab: EditorTab) -> Bool {
         switch tab {
         case .crop: return viewModel.isCanvasActive
+        case .filter: return viewModel.isFilterActive
         case .adjust: return viewModel.isAdjustActive
         case .colors: return viewModel.isColorActive
         case .unsplash: return false
@@ -442,6 +458,8 @@ struct EditorView: View {
         switch tab {
         case .crop:
             CanvasTabView(viewModel: viewModel)
+        case .filter:
+            FilterTabView(viewModel: viewModel)
         case .adjust:
             AdjustmentTabView(viewModel: viewModel, selectedParameter: $selectedAdjustmentParameter)
         case .colors:

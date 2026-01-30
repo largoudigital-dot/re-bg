@@ -15,12 +15,13 @@ struct ZoomableImageView: View {
     let activeLayer: SelectedLayer
     let rotation: CGFloat
     let isCropping: Bool
+    let appliedCropRect: CGRect? // ADDED: Cumulative applied crop
     let onCropCommit: ((CGRect) -> Void)?
     @Binding var stickers: [Sticker]
     @Binding var selectedStickerId: UUID?
     let onDeleteSticker: (UUID) -> Void
     
-    init(foreground: UIImage?, background: UIImage?, original: UIImage?, backgroundColor: Color?, gradientColors: [Color]?, activeLayer: SelectedLayer, rotation: CGFloat, isCropping: Bool = false, onCropCommit: ((CGRect) -> Void)? = nil, stickers: Binding<[Sticker]>, selectedStickerId: Binding<UUID?>, onDeleteSticker: @escaping (UUID) -> Void) {
+    init(foreground: UIImage?, background: UIImage?, original: UIImage?, backgroundColor: Color?, gradientColors: [Color]?, activeLayer: SelectedLayer, rotation: CGFloat, isCropping: Bool = false, appliedCropRect: CGRect? = nil, onCropCommit: ((CGRect) -> Void)? = nil, stickers: Binding<[Sticker]>, selectedStickerId: Binding<UUID?>, onDeleteSticker: @escaping (UUID) -> Void) {
         self.foreground = foreground
         self.background = background
         self.original = original
@@ -29,6 +30,7 @@ struct ZoomableImageView: View {
         self.activeLayer = activeLayer
         self.rotation = rotation
         self.isCropping = isCropping
+        self.appliedCropRect = appliedCropRect
         self.onCropCommit = onCropCommit
         self._stickers = stickers
         self._selectedStickerId = selectedStickerId
@@ -120,12 +122,31 @@ struct ZoomableImageView: View {
                                 .aspectRatio(contentMode: .fit)
                             
                             if isCropping, let commit = onCropCommit {
-                                CropOverlayView(onCommit: commit)
+                                CropOverlayView(initialRect: appliedCropRect ?? CGRect(x: 0, y: 0, width: 1, height: 1), onCommit: commit)
                             }
                         }
                         .overlay(
                             Rectangle()
                                 .stroke(Color.blue, lineWidth: (interactingLayer == .foreground || (interactingLayer == .canvas && activeLayer == .canvas)) ? 3 : 0)
+                        )
+                        // Visual Crop Mask: Applied when NOT cropping to show the "cut" effect
+                        // without changing the underlying image size or position.
+                        .mask(
+                            GeometryReader { imageGeo in
+                                if let crop = appliedCropRect, !isCropping {
+                                    Rectangle()
+                                        .frame(
+                                            width: crop.width * imageGeo.size.width,
+                                            height: crop.height * imageGeo.size.height
+                                        )
+                                        .position(
+                                            x: (crop.minX + crop.width/2) * imageGeo.size.width,
+                                            y: (crop.minY + crop.height/2) * imageGeo.size.height
+                                        )
+                                } else {
+                                    Rectangle()
+                                }
+                            }
                         )
                         .scaleEffect(fgScale)
                         .offset(fgOffset)
@@ -188,6 +209,8 @@ struct ZoomableImageView: View {
             .contentShape(Rectangle())
         }
     }
+    
+    @State private var previousCropRect: CGRect = CGRect(x: 0, y: 0, width: 1, height: 1)
     
     // MARK: - Gesture Logic
     

@@ -2,19 +2,41 @@
 import SwiftUI
 
 struct CropOverlayView: View {
+    let initialRect: CGRect
     let onCommit: (CGRect) -> Void
     
-    @State private var cropRect: CGRect = CGRect(x: 0, y: 0, width: 1, height: 1)
+    @State private var cropRect: CGRect
+    
+    init(initialRect: CGRect, onCommit: @escaping (CGRect) -> Void) {
+        self.initialRect = initialRect
+        self.onCommit = onCommit
+        self._cropRect = State(initialValue: initialRect)
+    }
     
     // Minimum crop size (normalized)
     private let minCropSize: CGFloat = 0.1
     
+    // To track if user is interacting
+    @State private var isDragging: Bool = false
+    
     // To track drag deltas
-    @State private var initialRect: CGRect? = nil
+    @State private var dragStartRect: CGRect? = nil
     
     var body: some View {
         GeometryReader { geometry in
             ZStack {
+                // Dimmed background with hole - Only show while dragging
+                if isDragging {
+                    DimmedBackgroundWithHole(hole: CGRect(
+                        x: cropRect.minX * geometry.size.width,
+                        y: cropRect.minY * geometry.size.height,
+                        width: cropRect.width * geometry.size.width,
+                        height: cropRect.height * geometry.size.height
+                    ))
+                    .fill(Color.black.opacity(0.5), style: FillStyle(eoFill: true))
+                    .transition(.opacity)
+                }
+                
                 // Border
                 Rectangle()
                     .stroke(Color.white, lineWidth: 2)
@@ -26,8 +48,6 @@ struct CropOverlayView: View {
                         x: (cropRect.minX + cropRect.width/2) * geometry.size.width,
                         y: (cropRect.minY + cropRect.height/2) * geometry.size.height
                     )
-                    // Add blend mode to make it visible against all backgrounds? 
-                    // White is usually fine.
                 
                 // Handles
                 handle(corner: .topLeft, geometry: geometry)
@@ -64,17 +84,23 @@ struct CropOverlayView: View {
             .gesture(
                 DragGesture()
                     .onChanged { value in
-                        if initialRect == nil {
-                            initialRect = cropRect
+                        if dragStartRect == nil {
+                            dragStartRect = cropRect
                             hapticFeedback()
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                isDragging = true
+                            }
                         }
                         
-                        guard let startRect = initialRect else { return }
+                        guard let startRect = dragStartRect else { return }
                         updateCrop(corner: corner, translation: value.translation, size: size, startRect: startRect)
                     }
                     .onEnded { _ in
                         commit()
-                        initialRect = nil
+                        dragStartRect = nil
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isDragging = false
+                        }
                     }
             )
     }
@@ -143,8 +169,17 @@ struct CropOverlayView: View {
     
     private func commit() {
         onCommit(cropRect)
-        // Reset to full because the image will be updated to the cropped version
-        cropRect = CGRect(x: 0, y: 0, width: 1, height: 1)
         hapticFeedback()
+    }
+}
+
+struct DimmedBackgroundWithHole: Shape {
+    let hole: CGRect
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.addRect(rect)
+        path.addRect(hole)
+        return path
     }
 }
