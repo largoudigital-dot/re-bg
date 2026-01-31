@@ -88,7 +88,7 @@ struct EditorView: View {
             if viewModel.showingTextEditor, let item = tempTextItem {
                 TextEditorOverlay(
                     textItem: Binding(
-                        get: { item },
+                        get: { tempTextItem ?? item },
                         set: { tempTextItem = $0 }
                     ),
                     onDone: {
@@ -316,7 +316,14 @@ struct EditorView: View {
                             selectedTextId: $viewModel.selectedTextId,
                             onDeleteText: { id in
                                 viewModel.removeTextItem(id: id)
-                            }
+                            },
+                            onEditText: { item in
+                                tempTextItem = item
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    viewModel.showingTextEditor = true
+                                }
+                            },
+                            isEditingText: viewModel.showingTextEditor
                         )
                         .id("photo-\(viewModel.rotation)-\(viewModel.originalImage?.hashValue ?? 0)")
                     }

@@ -415,7 +415,7 @@ class ImageProcessor {
             let textSize = attributedString.size()
             
             // Background padding
-            let padding = fontSize * 0.4
+            let padding = fontSize * 0.5 // Increased from 0.4
             let bgRect = CGRect(x: -textSize.width/2 - padding, 
                                 y: -textSize.height/2 - padding/2, 
                                 width: textSize.width + padding * 2, 
@@ -432,7 +432,7 @@ class ImageProcessor {
             if item.backgroundStyle != .none {
                 let opacity = item.backgroundStyle == .solid ? 1.0 : 0.6
                 UIColor(item.backgroundColor).withAlphaComponent(opacity).setFill()
-                let path = UIBezierPath(roundedRect: bgRect, cornerRadius: padding * 0.5)
+                let path = UIBezierPath(roundedRect: bgRect, cornerRadius: padding * 0.8) // More rounded
                 path.fill()
             }
             

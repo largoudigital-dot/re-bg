@@ -24,8 +24,10 @@ struct ZoomableImageView: View {
     @Binding var textItems: [TextItem]
     @Binding var selectedTextId: UUID?
     let onDeleteText: (UUID) -> Void
+    let onEditText: (TextItem) -> Void
+    let isEditingText: Bool
     
-    init(foreground: UIImage?, background: UIImage?, original: UIImage?, backgroundColor: Color?, gradientColors: [Color]?, activeLayer: SelectedLayer, rotation: CGFloat, isCropping: Bool = false, appliedCropRect: CGRect? = nil, onCropCommit: ((CGRect) -> Void)? = nil, stickers: Binding<[Sticker]>, selectedStickerId: Binding<UUID?>, onDeleteSticker: @escaping (UUID) -> Void, textItems: Binding<[TextItem]>, selectedTextId: Binding<UUID?>, onDeleteText: @escaping (UUID) -> Void) {
+    init(foreground: UIImage?, background: UIImage?, original: UIImage?, backgroundColor: Color?, gradientColors: [Color]?, activeLayer: SelectedLayer, rotation: CGFloat, isCropping: Bool = false, appliedCropRect: CGRect? = nil, onCropCommit: ((CGRect) -> Void)? = nil, stickers: Binding<[Sticker]>, selectedStickerId: Binding<UUID?>, onDeleteSticker: @escaping (UUID) -> Void, textItems: Binding<[TextItem]>, selectedTextId: Binding<UUID?>, onDeleteText: @escaping (UUID) -> Void, onEditText: @escaping (TextItem) -> Void, isEditingText: Bool = false) {
         self.foreground = foreground
         self.background = background
         self.original = original
@@ -43,6 +45,8 @@ struct ZoomableImageView: View {
         self._textItems = textItems
         self._selectedTextId = selectedTextId
         self.onDeleteText = onDeleteText
+        self.onEditText = onEditText
+        self.isEditingText = isEditingText
     }
     
     // Foreground State
@@ -216,6 +220,10 @@ struct ZoomableImageView: View {
                             onDelete: {
                                 onDeleteText(textItem.id)
                             },
+                            onEdit: {
+                                onEditText(textItem)
+                            },
+                            isEditing: isEditingText,
                             parentTransform: getCurrentPhotoTransform(geometry: geometry)
                         )
                     }
@@ -656,6 +664,8 @@ struct TextItemOverlayView: View {
     let isSelected: Bool
     let onSelect: () -> Void
     let onDelete: () -> Void
+    let onEdit: () -> Void
+    let isEditing: Bool
     let parentTransform: PhotoTransform
     
     @State private var dragOffset: CGSize = .zero
@@ -693,30 +703,36 @@ struct TextItemOverlayView: View {
                     .font(.custom(item.fontName, size: 40))
                     .foregroundColor(item.color)
                     .multilineTextAlignment(mapAlignment(item.alignment))
-                    .padding(.horizontal, 15)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
                     .background(
                         Group {
                             if item.backgroundStyle != .none {
-                                RoundedRectangle(cornerRadius: 8)
+                                RoundedRectangle(cornerRadius: 16)
                                     .fill(item.backgroundColor.opacity(item.backgroundStyle == .solid ? 1.0 : 0.6))
                             }
                         }
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(isSelected ? Color.white : Color.clear, style: StrokeStyle(lineWidth: 3, dash: [8, 4]))
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(isSelected && !isEditing ? Color.white : Color.clear, style: StrokeStyle(lineWidth: 3, dash: [8, 4]))
                             .shadow(color: .black.opacity(0.3), radius: 2)
                     )
+                    .contentShape(Rectangle()) // Ensure the whole area is tappable
             }
+            .opacity(isSelected && isEditing ? 0 : 1) // Hide when editing to avoid duplicates
             .scaleEffect(item.scale * currentScale)
             .rotationEffect(item.rotation + currentRotation)
             .onTapGesture {
-                onSelect()
+                if isSelected {
+                    onEdit()
+                } else {
+                    onSelect()
+                }
                 hapticFeedback()
             }
             .highPriorityGesture(
-                DragGesture(minimumDistance: 0, coordinateSpace: .named("StickerContainer"))
+                DragGesture(minimumDistance: 1, coordinateSpace: .named("StickerContainer"))
                     .onChanged { value in
                         if dragOffset == .zero {
                             onSelect()
@@ -759,7 +775,7 @@ struct TextItemOverlayView: View {
                 )
             )
             
-            if isSelected {
+            if isSelected && !isEditing {
                 selectionHandles
                     .scaleEffect(item.scale * currentScale)
                     .rotationEffect(item.rotation + currentRotation)

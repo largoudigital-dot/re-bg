@@ -22,8 +22,8 @@ enum TextBackgroundStyle: String, CaseIterable, Identifiable {
     var iconName: String {
         switch self {
         case .none: return "textformat"
-        case .solid: return "square.fill"
-        case .semiTransparent: return "square"
+        case .solid: return "a.square.fill"
+        case .semiTransparent: return "a.square"
         }
     }
 }
